@@ -1,0 +1,411 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         String    @default("STUDENT") // STUDENT, PARENT, SCHOOL_ADMIN, COUNSELOR, PLATFORM_ADMIN
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  studentProfile       StudentProfile?
+  parentProfile        ParentProfile?
+  counselorProfile     CounselorProfile?
+  schoolMemberships    SchoolMembership[]
+  subscriptions        Subscription[]
+  payments             Payment[]
+  aiConversations      AIConversation[]
+  auditLogs            AuditLog[]
+}
+
+model StudentProfile {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentClass         String   @default("CLASS_10") // CLASS_10, CLASS_12
+  board                String?  // CBSE, CISCE, STATE_BOARD, IB, CAMBRIDGE
+  state                String?
+  city                 String?
+  currentSubjects      String?  // JSON string array
+  scoreRange           String?  // e.g. "75-85%", "85-95%"
+  favouriteSubjects    String?  // JSON string array
+  difficultSubjects    String?  // JSON string array
+  hobbies              String?  // JSON string array
+  preferredActivities  String?  // JSON string array
+  skills               String?  // JSON string array
+  learningStyle        String?  // Visual, Practical, Analytical, Social
+  budgetRange          String?  // "< 2 Lakhs", "2-5 Lakhs", "5-10 Lakhs", "10-25 Lakhs", "25+ Lakhs"
+  willingnessToRelocate Boolean @default(true)
+  preferredLanguages   String?  // JSON string array
+  careerExpectations   String?
+  familyConstraints    String?
+  onboardingCompleted  Boolean  @default(false)
+  completionScore      Int      @default(20)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  parentLinks          ParentStudentLink[]
+  enrollments          StudentEnrollment[]
+  assessmentAttempts   AssessmentAttempt[]
+  recommendations      CareerRecommendation[]
+  roadmaps             CareerRoadmap[]
+  counselorBookings    CounselorBooking[]
+  savedCareers         SavedCareer[]
+  savedColleges        SavedCollege[]
+}
+
+model ParentProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occupation     String?
+  educationLevel String?
+  city           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  studentLinks   ParentStudentLink[]
+}
+
+model ParentStudentLink {
+  id              String         @id @default(uuid())
+  parentId        String
+  parent          ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status          String         @default("ACTIVE") // PENDING, ACTIVE, REVOKED
+  consentGiven    Boolean        @default(true)
+  relationship    String         @default("Parent") // Mother, Father, Guardian
+  createdAt       DateTime       @default(now())
+}
+
+model School {
+  id               String   @id @default(uuid())
+  name             String
+  code             String   @unique
+  board            String?
+  city             String?
+  state            String?
+  contactEmail     String
+  contactPhone     String?
+  subscriptionTier String   @default("PILOT") // PILOT, GROWTH, INSTITUTION, ENTERPRISE
+  maxStudents      Int      @default(100)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  memberships      SchoolMembership[]
+  classGroups      ClassGroup[]
+  enrollments      StudentEnrollment[]
+}
+
+model SchoolMembership {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  role      String   @default("TEACHER") // ADMIN, TEACHER, COUNSELOR
+  createdAt DateTime @default(now())
+}
+
+model ClassGroup {
+  id           String   @id @default(uuid())
+  schoolId     String
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name         String   // e.g. "10-A", "12-Science-B"
+  academicYear String   @default("2026-2027")
+  createdAt    DateTime @default(now())
+
+  enrollments  StudentEnrollment[]
+}
+
+model StudentEnrollment {
+  id           String         @id @default(uuid())
+  studentId    String
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schoolId     String
+  school       School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classGroupId String?
+  classGroup   ClassGroup?    @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  rollNumber   String?
+  enrolledAt   DateTime       @default(now())
+}
+
+model CounselorProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String   @default("Certified Career Counselor")
+  bio             String?
+  degrees         String?  // JSON string
+  certifications  String?  // JSON string
+  specializations String?  // JSON string (e.g. ["STEM", "Study Abroad", "Liberal Arts"])
+  languages       String?  // JSON string
+  experienceYears Int      @default(5)
+  hourlyRate      Int      @default(1200) // in INR
+  isVerified      Boolean  @default(false)
+  rating          Float    @default(4.9)
+  availableSlots  String?  // JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bookings        CounselorBooking[]
+}
+
+model CounselorBooking {
+  id              String           @id @default(uuid())
+  counselorId     String
+  counselor       CounselorProfile @relation(fields: [counselorId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scheduledDate   String           // YYYY-MM-DD
+  slotTime        String           // e.g. "16:00 - 17:00"
+  durationMinutes Int              @default(60)
+  amountPaid      Int              @default(1200)
+  meetingLink     String?
+  studentNotes    String?
+  counselorNotes  String?
+  status          String           @default("CONFIRMED") // CONFIRMED, COMPLETED, CANCELLED
+  paymentStatus   String           @default("PAID")
+  createdAt       DateTime         @default(now())
+}
+
+model AssessmentQuestion {
+  id             String   @id @default(uuid())
+  orderNumber    Int      @unique
+  prompt         String
+  category       String   // APTITUDE, INTEREST, WORK_STYLE, VALUE
+  dimension      String   // Numerical, Logical, Verbal, Spatial, Scientific, Creative, etc.
+  optionsJson    String   // Array of { text: string, score: number, traits: string[] }
+  weight         Float    @default(1.0)
+  createdAt      DateTime @default(now())
+}
+
+model AssessmentAttempt {
+  id               String         @id @default(uuid())
+  studentId        String
+  student          StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  startedAt        DateTime       @default(now())
+  completedAt      DateTime?
+  status           String         @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  responsesJson    String?        // Map of questionId -> selectedOptionIndex
+  dimensionScores  String?        // Map of dimension -> score
+  interestProfile  String?        // Top interest areas
+  strengthProfile  String?        // Key strengths
+  readinessProfile String?        // Stream readiness breakdown
+  summaryReport    String?        // Formatted executive summary
+}
+
+model Career {
+  id                  String   @id @default(uuid())
+  title               String
+  slug                String   @unique
+  category            String   // Engineering, Medical, Computing/AI, Law, Design, Commerce, Humanities, Aviation, Defence, etc.
+  stream              String   // PCM, PCB, PCMB, COMMERCE, HUMANITIES, VOCATIONAL, ANY
+  shortDescription    String
+  fullDescription     String
+  responsibilitiesJson String  // JSON array
+  requiredSubjectsJson String  // JSON array
+  entryQualifications String
+  recommendedSkillsJson String // JSON array
+  entranceExamsJson   String   // JSON array
+  degreesJson         String   // JSON array
+  topCollegesJson     String   // JSON array
+  salaryMinINR        Int      // annual entry-level INR
+  salaryMaxINR        Int      // annual experienced INR
+  futureDemand        String   @default("HIGH") // VERY_HIGH, HIGH, MODERATE
+  automationExposure  String   @default("LOW")  // LOW, MODERATE, HIGH
+  sourceName          String   @default("Ministry of Skill Development & Industry Reports")
+  sourceUrl           String   @default("https://www.ibef.org")
+  lastVerifiedDate    String   @default("2026-01-15")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  recommendations     CareerRecommendation[]
+  savedBy             SavedCareer[]
+}
+
+model College {
+  id               String   @id @default(uuid())
+  name             String
+  state            String
+  city             String
+  nirfRank         Int?
+  coursesJson      String   // JSON array of degrees
+  feeMinINR        Int
+  feeMaxINR        Int
+  accreditation    String   @default("NAAC A++")
+  admissionRoute   String   // JEE, NEET, CUET, Direct, etc.
+  websiteUrl       String
+  verifiedDate     String   @default("2026-01-15")
+  createdAt        DateTime @default(now())
+
+  savedBy          SavedCollege[]
+}
+
+model EntranceExam {
+  id                  String   @id @default(uuid())
+  name                String   @unique // e.g. JEE Main, NEET UG, CLAT, CUET
+  fullName            String
+  conductingAuthority String
+  targetStreamsJson   String   // JSON array
+  eligibleCoursesJson String   // JSON array
+  examFrequency       String   @default("Once or Twice a Year")
+  examMode            String   @default("Computer-Based Test")
+  importantDatesInfo  String
+  officialWebsite     String
+  createdAt           DateTime @default(now())
+}
+
+model Scholarship {
+  id               String   @id @default(uuid())
+  name             String
+  provider         String
+  eligibility      String
+  benefitAmount    String
+  incomeCeiling    String?
+  requiredDocsJson String   // JSON array
+  officialUrl      String
+  deadlineText     String   @default("Annual cycle - verify on official portal")
+  lastVerifiedDate String   @default("2026-01-15")
+  createdAt        DateTime @default(now())
+}
+
+model CareerRecommendation {
+  id                  String         @id @default(uuid())
+  studentId           String
+  student             StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  careerId            String
+  career              Career         @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  matchScore          Int            // 0 - 100%
+  interestScore       Int
+  strengthScore       Int
+  academicScore       Int
+  whyItMatches        String
+  areasToDevelop      String
+  suggestedNextSteps  String         // JSON array
+  createdAt           DateTime       @default(now())
+}
+
+model CareerRoadmap {
+  id                  String         @id @default(uuid())
+  studentId           String
+  student             StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  careerTitle         String
+  targetYear          String         @default("2028")
+  milestonesJson      String         // JSON array of { period: string, title: string, tasks: Array<{ task: string, completed: boolean }> }
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model SavedCareer {
+  id        String         @id @default(uuid())
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  careerId  String
+  career    Career         @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  savedAt   DateTime       @default(now())
+
+  @@unique([studentId, careerId])
+}
+
+model SavedCollege {
+  id        String         @id @default(uuid())
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  collegeId String
+  college   College        @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  savedAt   DateTime       @default(now())
+
+  @@unique([studentId, collegeId])
+}
+
+model SubscriptionPlan {
+  id             String   @id @default(uuid())
+  code           String   @unique // FREE, DISCOVERY, PREMIUM_STUDENT, PREMIUM_PLUS, SCHOOL_PILOT, SCHOOL_GROWTH
+  name           String
+  description    String
+  priceINR       Int      // in INR
+  billingType    String   // ONE_TIME, ANNUAL, MONTHLY
+  featuresJson   String   // JSON array of strings
+  isPopular      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscriptions  Subscription[]
+}
+
+model Subscription {
+  id                   String           @id @default(uuid())
+  userId               String
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId               String
+  plan                 SubscriptionPlan @relation(fields: [planId], references: [id])
+  status               String           @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  razorpaySubId        String?
+  startDate            DateTime         @default(now())
+  endDate              DateTime?
+  autoRenew            Boolean          @default(true)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+model Payment {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId          String   @unique
+  paymentId        String?
+  amountINR        Int
+  currency         String   @default("INR")
+  status           String   @default("SUCCESS") // CREATED, SUCCESS, FAILED, REFUNDED
+  planCode         String
+  method           String   @default("RAZORPAY_SANDBOX")
+  receiptNumber    String   @unique
+  createdAt        DateTime @default(now())
+}
+
+model AIConversation {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String      @default("Career Guidance Session")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  messages    AIMessage[]
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // USER, ASSISTANT, SYSTEM
+  content        String
+  sourcesJson    String?        // references or verified citations
+  createdAt      DateTime       @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g. "USER_LOGIN", "PAYMENT_VERIFIED", "PLAN_UPGRADE"
+  resource   String   // e.g. "AUTH", "BILLING", "ASSESSMENT"
+  details    String?  // JSON details
+  ipAddress  String?  @default("127.0.0.1")
+  createdAt  DateTime @default(now())
+}
