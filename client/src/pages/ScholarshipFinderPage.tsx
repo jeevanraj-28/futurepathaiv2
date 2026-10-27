@@ -1,113 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { ExternalLink, FileText, Search } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { Scholarship } from '../types';
-import {
-  Award,
-  Search,
-  IndianRupee,
-  Calendar,
-  ExternalLink,
-  ShieldCheck,
-  FileCheck
-} from 'lucide-react';
+import type { Scholarship } from '../types';
+import { Dhruv } from '../components/brand';
+import { Skeleton, StateMessage } from '../components/ui';
+import { PageFrame } from '../components/layout/AppLayout';
 
 export const ScholarshipFinderPage: React.FC = () => {
-  const [scholarships, setScholarships] = useState<Scholarship[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<Scholarship[]>([]);
   const [search, setSearch] = useState('');
-
-  const fetchScholarships = async () => {
-    setLoading(true);
-    try {
-      const res = await ApiService.getScholarships({ search: search || undefined });
-      if (res.success && res.scholarships) {
-        setScholarships(res.scholarships);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchScholarships();
-  }, []);
+    const t = window.setTimeout(() => {
+      setLoading(true);
+      setError(false);
+      ApiService.getScholarships({ search: search.trim() || undefined })
+        .then((res) => setItems(res.scholarships || []))
+        .catch(() => setError(true))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-cyan-400 text-xs font-semibold border border-brand-500/20">
-            <Award className="w-3.5 h-3.5" />
-            <span>Government & Merit Grants</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Higher Education Scholarship Finder
-          </h1>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Verified scholarships from the Ministry of Education, Department of Science & Technology, AICTE, and national trusts to finance undergraduate education.
-          </p>
+    <PageFrame className="flex flex-col gap-7">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div className="flex max-w-2xl flex-col gap-3">
+          <p className="eyebrow">Discover · Funding</p>
+          <h1 className="h-display text-4xl sm:text-5xl">Scholarships</h1>
+          <p className="text-lg leading-relaxed text-ink-2">Central and state schemes with who can apply, how much they give and the documents you need.</p>
         </div>
-
-        {/* Scholarships List */}
-        {loading ? (
-          <div className="text-center py-20 text-slate-400 text-sm">Loading verified scholarship schemes...</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {scholarships.map(sc => (
-              <div
-                key={sc.id}
-                className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      {sc.benefitAmount}
-                    </span>
-                    <span className="text-[11px] text-slate-400">Verified {sc.lastVerifiedDate}</span>
-                  </div>
-
-                  <h3 className="text-xl font-bold text-white">{sc.name}</h3>
-                  <p className="text-xs text-cyan-300 font-medium">Provider: {sc.provider}</p>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-1">
-                    <span className="font-semibold text-slate-400 block">Eligibility:</span>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">{sc.eligibility}</p>
-                  </div>
-
-                  {sc.incomeCeiling && (
-                    <div className="text-xs text-slate-400">
-                      <span>Income Limit: </span>
-                      <strong className="text-white">{sc.incomeCeiling}</strong>
-                    </div>
-                  )}
-
-                  <div className="text-xs text-slate-400">
-                    <span className="font-semibold text-slate-300">Required Documents: </span>
-                    <span>{sc.requiredDocs?.join(', ')}</span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">{sc.deadlineText}</span>
-                  <a
-                    href={sc.officialUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                  >
-                    <span>Apply on Portal</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+        <Dhruv pose="love" size={110} className="hidden sm:block" decorative />
       </div>
-    </div>
+
+      <div className="relative">
+        <label htmlFor="scholarship-search" className="sr-only">Search scholarships</label>
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+        <input id="scholarship-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, provider or eligibility" className="field-input pl-12" />
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col gap-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-44 rounded-3xl" />)}</div>
+      ) : error ? (
+        <div className="card"><StateMessage pose="think" title="Scholarships didn’t load" body="Please check your connection and refresh." /></div>
+      ) : items.length === 0 ? (
+        <div className="card"><StateMessage pose="read" title="No scholarships match" body="Try a broader search, like “merit” or “engineering”." /></div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {items.map((s) => (
+            <article key={s.id} className="card grid gap-5 p-6 lg:grid-cols-[1fr_260px]">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-xl font-bold">{s.name}</h2>
+                  <p className="text-[15px] text-ink-3">{s.provider}</p>
+                </div>
+                <p className="leading-relaxed text-ink-2"><strong className="text-ink">Who can apply:</strong> {s.eligibility}</p>
+                {s.requiredDocs?.length > 0 && (
+                  <p className="flex flex-wrap items-center gap-2 text-sm text-ink-2">
+                    <FileText className="h-4 w-4 text-ink-3" aria-hidden="true" />{s.requiredDocs.join(' · ')}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl bg-leaf-50 p-5">
+                <div><span className="text-sm text-leaf-700">Benefit</span><p className="text-lg font-bold text-leaf-900">{s.benefitAmount}</p></div>
+                {s.incomeCeiling && <div><span className="text-sm text-leaf-700">Family income limit</span><p className="font-semibold text-leaf-900">{s.incomeCeiling}</p></div>}
+                <div><span className="text-sm text-leaf-700">Deadline</span><p className="font-semibold text-leaf-900">{s.deadlineText}</p></div>
+                {s.officialUrl && <a href={s.officialUrl} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1.5">Apply on official site<ExternalLink className="h-4 w-4" aria-hidden="true" /></a>}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </PageFrame>
   );
 };

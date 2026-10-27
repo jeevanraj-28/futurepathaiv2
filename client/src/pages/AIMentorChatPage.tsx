@@ -1,227 +1,203 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ApiService } from '../services/api';
-import {
-  Compass,
-  Send,
-  Sparkles,
-  Bot,
-  User as UserIcon,
-  Loader2,
-  ExternalLink,
-  ShieldCheck,
-  HelpCircle,
-  Lightbulb
-} from 'lucide-react';
+import { Dhruv } from '../components/brand';
+import { Character, characterForRole } from '../components/Character';
+import { Alert, Badge, Button } from '../components/ui';
+import { cn } from '../lib/utils';
+
+type Message = { role: 'USER' | 'ASSISTANT'; content: string; sources?: string[] };
+
+const SUGGESTIONS = [
+  'Should I choose PCM, PCB or Commerce after Class 10?',
+  'Which exams do I need for an AI engineer career?',
+  'Can I study law or design without Science?',
+  'MBBS vs BDS vs B.Pharm — what’s the difference?',
+];
+
+/** Renders the mentor's plain-text replies with paragraphs, bullet lists and **bold**. */
+const RichText: React.FC<{ text: string }> = ({ text }) => {
+  const inline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : <React.Fragment key={i}>{part}</React.Fragment>
+    );
+  const blocks: React.ReactNode[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (list.length) {
+      blocks.push(<ul key={`l${blocks.length}`} className="ml-5 list-disc space-y-1">{list.map((li, i) => <li key={i}>{inline(li)}</li>)}</ul>);
+      list = [];
+    }
+  };
+  text.split('\n').forEach((raw) => {
+    const line = raw.trim();
+    if (/^([-•*]|\d+[.)])\s+/.test(line)) list.push(line.replace(/^([-•*]|\d+[.)])\s+/, ''));
+    else {
+      flush();
+      if (line) blocks.push(<p key={`p${blocks.length}`}>{inline(line.replace(/^#+\s*/, ''))}</p>);
+    }
+  });
+  flush();
+  return <div className="flex flex-col gap-2.5">{blocks}</div>;
+};
 
 export const AIMentorChatPage: React.FC = () => {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<any[]>([]);
-  const [inputMessage, setInputMessage] = useState('');
+  const [params, setParams] = useSearchParams();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const suggestionChips = [
-    'Should I choose PCM, PCB, or Commerce after Class 10?',
-    'What skills and exams are required for an AI Engineer in India?',
-    'Can I pursue Corporate Law or Design without Science?',
-    'Explain the MBBS vs BDS vs B.Pharm pathways',
-    'How do I build a strong extracurricular portfolio for university?'
-  ];
+  const [sending, setSending] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const sentInitial = useRef(false);
 
   useEffect(() => {
-    ApiService.getAIHistory().then(res => {
-      if (res.success) {
-        setConversationId(res.conversationId);
-        if (res.messages && res.messages.length > 0) {
-          setMessages(res.messages);
-        } else {
-          // Welcome initial message
-          setMessages([
-            {
-              role: 'ASSISTANT',
-              content: `Hello ${user?.name || 'there'}! I am your FuturePath AI Career Mentor. I can help you decode Class 10 stream options, entrance examination patterns (JEE, NEET, CUET, CLAT), verified college degrees, and 5-year preparation milestones.\n\nHow can I support your educational journey today?`,
-              sources: ['National Career Service Portal', 'CBSE Curriculum Guidelines']
-            }
-          ]);
+    ApiService.getAIHistory()
+      .then((res) => {
+        if (res.success) {
+          setConversationId((id) => id || res.conversationId);
+          // never replace messages already on screen (a question may have been sent while history loaded)
+          setMessages((prev) => prev.length ? prev : res.messages?.length ? res.messages : [{
+            role: 'ASSISTANT',
+            content: `Hi ${user?.name?.split(' ')[0] || 'there'}! I’m Dhruv. Ask me about streams, entrance exams, colleges or your report. I’ll point you to official sources, and I’ll tell you when something needs a human counsellor.`,
+          }]);
         }
-      }
-    });
+      })
+      .catch(() => setMessages((prev) => prev.length ? prev : [{ role: 'ASSISTANT', content: 'Hi! I’m Dhruv. Ask me anything about streams, exams, colleges or careers.' }]))
+      .finally(() => setReady(true));
   }, [user]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, sending]);
 
-  const handleSend = async (messageText?: string) => {
-    const textToSend = messageText || inputMessage;
-    if (!textToSend.trim()) return;
-
-    const userMsg = { role: 'USER', content: textToSend };
-    setMessages(prev => [...prev, userMsg]);
-    setInputMessage('');
-    setLoading(true);
-
+  const send = async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || sending) return;
+    setMessages((m) => [...m, { role: 'USER', content: msg }]);
+    setInput('');
+    setSending(true);
+    setError(null);
     try {
-      const res = await ApiService.sendAIChat(textToSend, conversationId || undefined);
+      const res = await ApiService.sendAIChat(msg, conversationId || undefined);
       if (res.success) {
         if (!conversationId) setConversationId(res.conversationId);
-        setMessages(prev => [
-          ...prev,
-          {
-            role: 'ASSISTANT',
-            content: res.reply,
-            sources: res.sources
-          }
-        ]);
+        setMessages((m) => [...m, { role: 'ASSISTANT', content: res.reply, sources: res.sources }]);
       }
     } catch (err: any) {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'ASSISTANT',
-          content: 'I apologize, the career guidance service experienced a momentary timeout. Please ask your question again.',
-          sources: []
-        }
-      ]);
+      setError(err.message || 'Dhruv couldn’t reply just now. Please try again.');
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
+  // questions passed from other screens ("Ask Dhruv about my report") are sent once history has loaded
+  useEffect(() => {
+    const q = params.get('q');
+    if (ready && q && !sentInitial.current) {
+      sentInitial.current = true;
+      setParams({}, { replace: true });
+      send(q);
+    }
+  }, [ready]);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-8 flex flex-col">
-      <div className="max-w-4xl w-full mx-auto px-4 sm:px-6 flex-1 flex flex-col space-y-4">
-        
-        {/* Mentor Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-cyan-400 p-0.5">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Bot className="w-5 h-5 text-cyan-400" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-white">AI Career Mentor</h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Online
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">Contextual Indian Education & Stream Advisory</p>
-            </div>
+    <div className="grid gap-6 xl:grid-cols-[1fr_300px]">
+      <section aria-label="Chat with Dhruv" className="flex h-[calc(100vh-180px)] min-h-[520px] flex-col overflow-hidden rounded-4xl border border-line bg-white md:h-[calc(100vh-112px)]">
+        <header className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3.5">
+          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-royal-50"><Dhruv pose="wave" size={48} decorative /></span>
+          <div className="flex flex-1 flex-col">
+            <h1 className="text-lg font-bold">Dhruv · AI mentor</h1>
+            <span className="text-sm text-ink-3">Guidance, not guarantees. Check dates on official sites.</span>
           </div>
+          <Badge tone="leaf">Cites official sources</Badge>
+        </header>
 
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>DPDP Safe & Ad-Free</span>
-          </div>
-        </div>
-
-        {/* Suggestion Chips */}
-        <div className="space-y-1.5">
-          <span className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Lightbulb className="w-3 h-3 text-cyan-400" />
-            <span>Suggested prompts:</span>
-          </span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {suggestionChips.map((chip, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(chip)}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs whitespace-nowrap transition-colors"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Messages Feed */}
-        <div className="flex-1 overflow-y-auto space-y-4 p-4 rounded-2xl glass-panel bg-slate-900 border border-slate-800 min-h-[420px] max-h-[550px]">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex gap-3 ${msg.role === 'USER' ? 'justify-end' : 'justify-start'}`}
-            >
-              {msg.role === 'ASSISTANT' && (
-                <div className="w-8 h-8 rounded-lg bg-brand-600/20 text-cyan-400 flex items-center justify-center flex-shrink-0 border border-brand-500/30 mt-1">
-                  <Bot className="w-4 h-4" />
-                </div>
-              )}
-
-              <div className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed space-y-2 ${
-                msg.role === 'USER'
-                  ? 'bg-brand-600 text-white rounded-br-none shadow-md'
-                  : 'bg-slate-950/80 text-slate-200 border border-slate-800 rounded-bl-none shadow-sm'
-              }`}>
-                <div className="whitespace-pre-line font-normal">
-                  {msg.content}
-                </div>
-
-                {/* Sources Citation */}
-                {msg.sources && msg.sources.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex items-center gap-1.5">
-                    <span className="font-semibold text-slate-300">Verified Sources:</span>
-                    <span>{msg.sources.join(' • ')}</span>
+        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6" aria-live="polite">
+          <div className="mx-auto flex max-w-3xl flex-col gap-5">
+            {messages.map((m, i) =>
+              m.role === 'ASSISTANT' ? (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-royal-50"><Dhruv pose="wave" size={40} decorative /></span>
+                  <div className="flex min-w-0 max-w-[620px] flex-col gap-2">
+                    <div className="rounded-[4px_18px_18px_18px] border border-line bg-mist px-4 py-3.5 text-[15px] leading-relaxed sm:text-base">
+                      <RichText text={m.content} />
+                    </div>
+                    {m.sources && m.sources.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-3">
+                        <span>Sources:</span>
+                        {m.sources.map((s) => <span key={s} className="rounded-full border border-line-strong bg-white px-2.5 py-1 font-semibold text-royal-600">{s}</span>)}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {msg.role === 'USER' && (
-                <div className="w-8 h-8 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center flex-shrink-0 border border-slate-700 mt-1">
-                  <UserIcon className="w-4 h-4" />
                 </div>
-              )}
-            </div>
-          ))}
-
-          {loading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-lg bg-brand-600/20 text-cyan-400 flex items-center justify-center flex-shrink-0 border border-brand-500/30">
-                <Bot className="w-4 h-4" />
+              ) : (
+                <div key={i} className="flex items-end justify-end gap-2.5">
+                  <div className="max-w-[520px] rounded-[18px_18px_4px_18px] bg-royal-500 px-4 py-3 text-[15px] leading-relaxed text-white sm:text-base">{m.content}</div>
+                  <Character who={characterForRole(user?.role)} size={32} animate={false} />
+                </div>
+              )
+            )}
+            {sending && (
+              <div className="flex items-center gap-3" role="status">
+                <Dhruv pose="think" size={48} decorative />
+                <span className="text-[15px] text-ink-3">Dhruv is checking sources…</span>
               </div>
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                <span>AI Mentor is synthesizing career intelligence...</span>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
+            )}
+            {error && <Alert>{error}</Alert>}
+            <div ref={endRef} />
+          </div>
         </div>
 
-        {/* Input Bar */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="relative flex items-center"
-        >
-          <input
-            type="text"
-            placeholder="Ask about streams, cutoffs, engineering, medical, law, or salaries..."
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            disabled={loading}
-            className="w-full pl-4 pr-14 py-3.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 shadow-xl"
-          />
-          <button
-            type="submit"
-            disabled={loading || !inputMessage.trim()}
-            className={`absolute right-2 p-2 rounded-lg transition-colors ${
-              inputMessage.trim() && !loading
-                ? 'bg-brand-600 hover:bg-brand-500 text-white'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
+        <div className="border-t border-line px-4 pb-4 pt-3 sm:px-6">
+          <div className="mx-auto flex max-w-3xl flex-col gap-3">
+            {messages.length <= 2 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" onClick={() => send(s)} disabled={sending} className="min-h-[44px] shrink-0 rounded-full border border-line-strong bg-mist px-4 text-sm font-semibold hover:border-royal-300">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+              <label htmlFor="chat-input" className="sr-only">Message Dhruv</label>
+              <input
+                id="chat-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about streams, exams, colleges or your report"
+                className="field-input"
+                autoComplete="off"
+              />
+              <button type="submit" aria-label="Send" disabled={!input.trim() || sending} className={cn('flex w-14 shrink-0 items-center justify-center rounded-[10px] text-white', input.trim() && !sending ? 'bg-royal-500 hover:bg-royal-600' : 'bg-line-strong')}>
+                <Send className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
 
-      </div>
+      <aside className="hidden flex-col gap-4 xl:flex">
+        <div className="flex flex-col gap-3 rounded-3xl bg-ink p-6 text-white">
+          <div className="flex items-center gap-3">
+            <Character who="ananya" size={48} />
+            <h2 className="text-lg font-bold text-white">Want a human view?</h2>
+          </div>
+          <p className="text-[15px] leading-relaxed text-night-text">Book a verified counsellor for a one-on-one session with your family.</p>
+          <Button to="/counselors" variant="white" size="sm">Book a counsellor</Button>
+        </div>
+        <div className="card flex flex-col gap-2 p-6">
+          <h2 className="text-lg font-bold">Good to know</h2>
+          <ul className="flex flex-col gap-2 text-[15px] leading-relaxed text-ink-2">
+            <li>Dhruv never invents cutoffs or guarantees admission.</li>
+            <li>For dates and fees, always confirm on the official website.</li>
+            <li>Chats are saved, so you can pick up where you left off.</li>
+          </ul>
+        </div>
+      </aside>
     </div>
   );
 };

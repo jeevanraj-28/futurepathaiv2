@@ -1,210 +1,167 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Copy, Search, Upload } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import {
-  Building,
-  Users,
-  CheckCircle2,
-  FileSpreadsheet,
-  Download,
-  Upload,
-  Layers,
-  Sparkles,
-  BarChart3,
-  Loader2
-} from 'lucide-react';
+import { Character } from '../components/Character';
+import { Alert, Badge, Button, PageHeader, ProgressBar, Segmented, Skeleton, StateMessage } from '../components/ui';
+import { plainDimension } from '../lib/utils';
+
+/** Minimal CSV reader for "name,email,rollNumber,class" rows exported from school spreadsheets. */
+const parseCsv = (text: string) =>
+  text
+    .split(/\r?\n/)
+    .map((l) => l.split(',').map((c) => c.trim().replace(/^"|"$/g, '')))
+    .filter((cols) => cols.length >= 2 && cols[1].includes('@'))
+    .map(([name, email, rollNumber, currentClass]) => ({ name, email, rollNumber, currentClass }));
 
 export const SchoolPortalPage: React.FC = () => {
-  const { user } = useAuth();
-  const [dashboard, setDashboard] = useState<any>(null);
+  const [school, setSchool] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
+  const [message, setMessage] = useState<{ tone: 'leaf' | 'danger' | 'royal'; text: string } | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const fetchSchoolData = async () => {
-    try {
-      const [dashRes, stuRes] = await Promise.all([
-        ApiService.getSchoolDashboard(),
-        ApiService.getSchoolStudents()
-      ]);
-      if (dashRes.success && dashRes.school) setDashboard(dashRes.school);
-      if (stuRes.success && stuRes.students) setStudents(stuRes.students);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+  const load = () =>
+    Promise.all([ApiService.getSchoolDashboard(), ApiService.getSchoolStudents()])
+      .then(([d, s]) => { setSchool(d.school); setStudents(s.students || []); })
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(
+    () => students.filter((s) =>
+      (status === 'ALL' || s.assessmentStatus === status) &&
+      `${s.name} ${s.email} ${s.rollNumber} ${s.classGroup}`.toLowerCase().includes(query.toLowerCase())
+    ),
+    [students, status, query]
+  );
+  const pendingCount = students.filter((s) => s.assessmentStatus !== 'COMPLETED').length;
+
+  const importCsv = async (file: File) => {
+    const rows = parseCsv(await file.text());
+    if (!rows.length) {
+      setMessage({ tone: 'danger', text: 'No students found. Use columns: name, email, roll number, class.' });
+      return;
     }
-  };
-
-  useEffect(() => {
-    fetchSchoolData();
-  }, []);
-
-  const handleSimulateCSVImport = async () => {
     setImporting(true);
-    setImportSuccess(null);
     try {
       const res = await ApiService.request<{ success: boolean; message: string }>('/school/bulk-import', {
         method: 'POST',
-        body: JSON.stringify({ studentsList: new Array(30).fill(null) })
+        body: JSON.stringify({ studentsList: rows }),
       });
-      if (res.success) {
-        setImportSuccess(res.message);
-        await fetchSchoolData();
-      }
+      setMessage({ tone: 'leaf', text: res.message });
+      await load();
     } catch (err: any) {
-      console.error(err);
+      setMessage({ tone: 'danger', text: err.message || 'Import failed.' });
     } finally {
       setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        <p className="text-sm">Loading School Institutional Workspace...</p>
-      </div>
-    );
-  }
+  const copyReminder = async () => {
+    const text = `Reminder from ${school?.name || 'school'}: please complete your FuturePath discovery test this week. It takes about 25 minutes: ${window.location.origin}/start`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage({ tone: 'royal', text: 'Reminder copied. Paste it into your class WhatsApp group.' });
+    } catch {
+      setMessage({ tone: 'royal', text });
+    }
+  };
+
+  if (loading) return <div className="flex flex-col gap-6"><Skeleton className="h-12 w-80" /><div className="grid gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
+  if (failed || !school) return <div className="card"><StateMessage pose="think" title="We couldn’t load your school" body="Please refresh. If it continues, contact support." /></div>;
+
+  const testRate = school.totalEnrolledStudents ? Math.round((school.completedAssessments / school.totalEnrolledStudents) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-semibold border border-indigo-500/20">
-              <Building className="w-3.5 h-3.5" />
-              <span>Multi-Tenant School SaaS</span>
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">
-              {dashboard?.name || 'Delhi Public School Workspace'}
-            </h1>
-            <p className="text-xs text-slate-400">
-              Institution Code: {dashboard?.code} • Board: {dashboard?.board} • Tier: {dashboard?.subscriptionTier}
-            </p>
-          </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        leading={<Character who="harjeet" size={60} />}
+        title={school.name}
+        subtitle={`${school.board || 'Board'} · ${school.city}, ${school.state} · ${school.subscriptionTier || 'Pilot'} plan`}
+        actions={
+          <>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="sr-only" id="csv-upload" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
+            <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} loading={importing}><Upload className="h-4 w-4" aria-hidden="true" />Import students (CSV)</Button>
+          </>
+        }
+      />
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSimulateCSVImport}
-              disabled={importing}
-              className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-colors flex items-center gap-2"
-            >
-              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-              <span>Import CSV Roster</span>
-            </button>
-          </div>
+      {message && <Alert tone={message.tone}>{message.text}</Alert>}
+
+      <section aria-label="Overview" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="card flex flex-col gap-2 p-5">
+          <span className="text-sm text-ink-3">Students enrolled</span>
+          <span className="font-display text-3xl font-bold">{school.totalEnrolledStudents}<span className="text-base font-medium text-ink-3"> / {school.maxStudents}</span></span>
+          <ProgressBar value={school.totalEnrolledStudents} max={school.maxStudents || 1} label="Seats used" />
         </div>
-
-        {importSuccess && (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            <span>{importSuccess}</span>
-          </div>
-        )}
-
-        {/* School KPI Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-1">
-            <span className="text-xs text-slate-400">Total Enrolled Students</span>
-            <p className="text-3xl font-black text-white">{dashboard?.totalEnrolledStudents || students.length}</p>
-            <span className="text-[10px] text-slate-400 block">Class 10 & 12 Batches</span>
-          </div>
-
-          <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-1">
-            <span className="text-xs text-slate-400">Assessments Completed</span>
-            <p className="text-3xl font-black text-cyan-400">{dashboard?.completedAssessments || 1}</p>
-            <span className="text-[10px] text-slate-400 block">16-D Psychometric evaluations</span>
-          </div>
-
-          <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-1">
-            <span className="text-xs text-slate-400">Career Readiness Rate</span>
-            <p className="text-3xl font-black text-emerald-400">{dashboard?.readinessRate || 85}%</p>
-            <span className="text-[10px] text-slate-400 block">Identified stream pathways</span>
-          </div>
-
-          <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-1">
-            <span className="text-xs text-slate-400">Plan Seat Capacity</span>
-            <p className="text-3xl font-black text-indigo-400">{dashboard?.maxStudents || 500}</p>
-            <span className="text-[10px] text-slate-400 block">Institutional Growth Tier</span>
-          </div>
+        <div className="card flex flex-col gap-2 p-5">
+          <span className="text-sm text-ink-3">Tests completed</span>
+          <span className="font-display text-3xl font-bold">{school.completedAssessments}</span>
+          <ProgressBar value={testRate} tone="leaf" label="Tests completed" />
         </div>
-
-        {/* Aggregated Stream Distribution */}
-        <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white">Institutional Stream Affinity Distribution</h3>
-              <p className="text-xs text-slate-400">Aggregated breakdown of Class 10 student stream compatibility.</p>
-            </div>
-            <span className="text-xs text-slate-400 font-semibold">Anonymized Batch Analytics</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-            {dashboard?.streamDistribution?.map((sd: any, i: number) => (
-              <div key={i} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                <span className="text-xs text-slate-400 font-semibold">{sd.stream}</span>
-                <p className="text-2xl font-bold text-white">{sd.percentage}%</p>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div className="h-full bg-brand-500 rounded-full" style={{ width: `${sd.percentage}%` }}></div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="card flex flex-col gap-1 p-5"><span className="text-sm text-ink-3">Still to take the test</span><span className="font-display text-3xl font-bold text-saffron-700">{pendingCount}</span>
+          {pendingCount > 0 && <button type="button" onClick={copyReminder} className="link mt-1 inline-flex items-center gap-1.5 self-start text-sm"><Copy className="h-4 w-4" aria-hidden="true" />Copy WhatsApp reminder</button>}
         </div>
+        <div className="card flex flex-col gap-1 p-5"><span className="text-sm text-ink-3">Batches</span><span className="font-display text-3xl font-bold">{school.batches?.length || 0}</span><span className="text-sm text-ink-3">{school.batches?.map((b: any) => b.name).join(', ')}</span></div>
+      </section>
 
-        {/* Student Roster Table */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-white">Enrolled Student Roster ({students.length})</h3>
-            <span className="text-xs text-slate-400">Isolated to {dashboard?.name}</span>
+      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+        <section aria-labelledby="roster-title" className="card flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="roster-title" className="text-xl font-bold">Students</h2>
+            <Segmented size="sm" label="Filter by test status" value={status} onChange={setStatus} options={[{ value: 'ALL', label: 'All' }, { value: 'PENDING', label: 'Not tested' }, { value: 'COMPLETED', label: 'Tested' }]} />
           </div>
-
-          <div className="rounded-2xl glass-panel bg-slate-900 border border-slate-800 overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+          <div className="relative">
+            <label htmlFor="roster-search" className="sr-only">Search students</label>
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+            <input id="roster-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, email, roll number or class" className="field-input pl-12" />
+          </div>
+          {filtered.length === 0 ? (
+            <StateMessage compact pose="read" title="No students match" body={students.length ? 'Try a different search or filter.' : 'Import your class list to get started.'} />
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-line">
+              <table className="w-full min-w-[720px] border-collapse text-left text-[15px]">
+                <thead className="bg-mist">
                   <tr>
-                    <th className="p-4">Roll No</th>
-                    <th className="p-4">Student Name</th>
-                    <th className="p-4">Class & Batch</th>
-                    <th className="p-4">Assessment Status</th>
-                    <th className="p-4">Primary Strengths</th>
-                    <th className="p-4">Profile Score</th>
+                    {['Roll', 'Student', 'Class', 'Test', 'Strongest areas', 'Profile'].map((h) => <th key={h} scope="col" className="px-4 py-3 text-sm font-bold text-ink-2">{h}</th>)}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {students.map((st, i) => (
-                    <tr key={i} className="hover:bg-slate-850/40 transition-colors">
-                      <td className="p-4 font-mono font-medium text-slate-400">{st.rollNumber}</td>
-                      <td className="p-4 font-bold text-white">{st.name}</td>
-                      <td className="p-4 text-cyan-300">{st.classGroup}</td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          st.assessmentStatus === 'COMPLETED'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/20 text-amber-300'
-                        }`}>
-                          {st.assessmentStatus}
-                        </span>
-                      </td>
-                      <td className="p-4 text-slate-400">
-                        {st.topStrengths && st.topStrengths.length > 0
-                          ? st.topStrengths.slice(0, 2).join(', ')
-                          : 'Pending evaluation'}
-                      </td>
-                      <td className="p-4 font-bold text-white">{st.completionScore}%</td>
+                <tbody>
+                  {filtered.map((s) => (
+                    <tr key={s.id} className="border-t border-line">
+                      <td className="px-4 py-3 font-mono text-sm text-ink-3">{s.rollNumber}</td>
+                      <td className="px-4 py-3"><span className="block font-semibold">{s.name}</span><span className="text-sm text-ink-3">{s.email}</span></td>
+                      <td className="px-4 py-3">{s.classGroup}</td>
+                      <td className="px-4 py-3">{s.assessmentStatus === 'COMPLETED' ? <Badge tone="leaf">Done</Badge> : <Badge tone="saffron">Not yet</Badge>}</td>
+                      <td className="px-4 py-3 text-sm text-ink-2">{s.topStrengths?.length ? s.topStrengths.slice(0, 2).map(plainDimension).join(', ') : '—'}</td>
+                      <td className="px-4 py-3 font-semibold">{s.completionScore}%</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
+          )}
+        </section>
 
+        <section aria-labelledby="streams-title" className="card flex flex-col gap-4 self-start p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="streams-title" className="text-lg font-bold">Stream interest</h2>
+            <Badge tone="neutral">Preview data</Badge>
+          </div>
+          {(school.streamDistribution || []).map((d: any) => (
+            <div key={d.stream} className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-[15px]"><span>{d.stream}</span><span className="font-bold">{d.percentage}%</span></div>
+              <ProgressBar value={d.percentage} label={d.stream} />
+            </div>
+          ))}
+          <p className="text-sm leading-relaxed text-ink-3">Use this in parent-teacher meetings to plan stream counselling sessions.</p>
+        </section>
       </div>
     </div>
   );

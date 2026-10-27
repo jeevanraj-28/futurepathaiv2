@@ -1,144 +1,158 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { SubscriptionPlan } from '../types';
-import {
-  CheckCircle2,
-  Sparkles,
-  ShieldCheck,
-  CreditCard,
-  Building,
-  HelpCircle,
-  Lock,
-  ArrowRight
-} from 'lucide-react';
+import type { SubscriptionPlan } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { useCheckout } from '../context/CheckoutContext';
+import { Button, Segmented, Skeleton } from '../components/ui';
+import { Dhruv } from '../components/brand';
+import { Character } from '../components/Character';
+import { cn, formatINR, parseList } from '../lib/utils';
 
-export const PricingPage: React.FC<{ onOpenCheckout?: (planCode: string) => void }> = ({ onOpenCheckout }) => {
+const DISPLAY: Record<string, { name: string; for: string }> = {
+  FREE: { name: 'Explorer', for: 'Try the test and see where you stand' },
+  DISCOVERY: { name: 'Career Report', for: 'One complete report to discuss at home' },
+  PREMIUM_STUDENT: { name: 'Premium', for: 'For students actively planning their next step' },
+  PREMIUM_PLUS: { name: 'Family', for: 'Bring parents and an expert into the plan' },
+  SCHOOL_PILOT: { name: 'School Pilot', for: 'For schools guiding Class 10 and 12 batches' },
+};
+
+const FAQ = [
+  ['Do I need to pay to take the test?', 'No. You can start the discovery test free, without signing up, and see your recommended stream and top matches.'],
+  ['How do I pay?', 'UPI, debit and credit cards, net banking and wallets through Razorpay. Prices include GST and the invoice is saved in Billing.'],
+  ['Will my plan renew automatically?', 'Yearly plans show the renewal date in Billing, and we remind you before it renews.'],
+  ['Can a parent pay for a student?', 'Yes. The Family plan includes the parent portal; a parent can buy it and link to the student’s account with their consent.'],
+];
+
+export const PricingPage: React.FC = () => {
+  const { subscription } = useAuth();
+  const { openCheckout } = useCheckout();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [audience, setAudience] = useState<'family' | 'school'>('family');
 
   useEffect(() => {
-    ApiService.getPlans().then(res => {
-      if (res.success && res.plans) {
-        setPlans(res.plans);
-      }
-    }).finally(() => setLoading(false));
+    ApiService.getPlans()
+      .then((res) => res.success && setPlans(res.plans.map((p: any) => ({ ...p, features: parseList(p.features ?? p.featuresJson) }))))
+      .catch(() => setPlans([]))
+      .finally(() => setLoading(false));
   }, []);
 
+  const familyPlans = plans.filter((p) => p.code !== 'SCHOOL_PILOT');
+  const school = plans.find((p) => p.code === 'SCHOOL_PILOT');
+  const currentCode = subscription?.planCode;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-cyan-400 text-xs font-semibold border border-brand-500/20">
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Honest, Transparent Indian Pricing</span>
-          </div>
-          <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight">
-            Invest in Evidence-Informed Guidance
-          </h1>
-          <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-            Choose the right level of career intelligence for your family or school. No deceptive subscriptions, hidden auto-debits, or predatory tactics.
-          </p>
-        </div>
+    <>
+      <section className="page flex flex-col items-center gap-5 pb-10 pt-16 text-center sm:pt-20">
+        <Dhruv pose="thumbsup" size={110} decorative />
+        <h1 className="h-display max-w-3xl text-4xl sm:text-[56px]">Simple prices. No surprise renewals.</h1>
+        <p className="max-w-2xl text-lg leading-relaxed text-ink-2">Take the discovery test free. Pay only when you want the full report, your plan and expert help. All prices include GST.</p>
+        <Segmented
+          label="Plan audience"
+          value={audience}
+          onChange={setAudience}
+          options={[{ value: 'family', label: 'Students & families' }, { value: 'school', label: 'Schools' }]}
+          className="mt-2 bg-mist"
+        />
+      </section>
 
-        {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.map(plan => {
-            const isHighlight = plan.isPopular;
-            const isFree = plan.priceINR === 0;
-
-            return (
-              <div
-                key={plan.id}
-                className={`p-7 rounded-2xl glass-card flex flex-col justify-between transition-all relative ${
-                  isHighlight
-                    ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-brand-950/40 border-2 border-brand-500 shadow-2xl hover:border-cyan-400'
-                    : 'bg-slate-900 border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                {isHighlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-gradient-to-r from-brand-600 to-cyan-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-md">
-                    Most Popular in India
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                      {plan.name}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">
-                      {plan.billingType.replace('_', ' ')}
-                    </span>
-                  </div>
-
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-black text-white">₹{plan.priceINR}</span>
-                    <span className="text-xs text-slate-400">
-                      {isFree ? '/ forever' : plan.billingType === 'ANNUAL' ? '/ year' : '/ one-time'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-400 leading-relaxed">{plan.description}</p>
-
-                  <ul className="space-y-2.5 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                    {plan.features?.map((f: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="pt-8">
-                  <button
-                    onClick={() => {
-                      if (onOpenCheckout && !isFree) {
-                        onOpenCheckout(plan.code);
-                      }
-                    }}
-                    className={`w-full py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
-                      isHighlight
-                        ? 'bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white shadow-lg glow-blue'
-                        : isFree
-                        ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                        : 'bg-brand-600 hover:bg-brand-500 text-white'
-                    }`}
+      {audience === 'family' ? (
+        <section className="page pb-20">
+          {loading ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[460px] rounded-3xl" />)}</div>
+          ) : (
+            <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {familyPlans.map((p) => {
+                const d = DISPLAY[p.code] || { name: p.name, for: p.description };
+                const featured = p.isPopular;
+                const isCurrent = currentCode === p.code;
+                return (
+                  <div
+                    key={p.code}
+                    className={cn('relative flex flex-col gap-6 rounded-3xl bg-white p-7', featured ? 'border-2 border-royal-500 shadow-[0_20px_40px_-24px_rgba(35,71,214,0.45)]' : 'border border-line')}
                   >
-                    <span>{isFree ? 'Active Plan' : `Upgrade (₹${plan.priceINR})`}</span>
-                    {!isFree && <ArrowRight className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Security & Refund Assurance Banner */}
-        <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-slate-400">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8 text-emerald-400 flex-shrink-0" />
-            <div>
-              <h4 className="font-bold text-white text-sm">7-Day Risk-Free Satisfaction Policy</h4>
-              <p className="text-[11px] text-slate-400">
-                If the Career Discovery Dossier does not clarify your child's academic direction, request a 100% prompt refund via our Billing Center within 7 days.
-              </p>
+                    {featured && <span className="absolute -top-3 left-6 rounded-full bg-royal-500 px-2.5 py-1 text-xs font-bold text-white">Most chosen</span>}
+                    <div className="flex flex-col gap-1.5">
+                      <h2 className="text-xl font-bold">{d.name}</h2>
+                      <p className="text-[15px] leading-snug text-ink-3">{d.for}</p>
+                    </div>
+                    <p className="flex items-baseline gap-1.5">
+                      <span className="font-display text-[44px] font-bold tracking-tight">{p.priceINR === 0 ? '₹0' : formatINR(p.priceINR)}</span>
+                      <span className="text-[15px] font-medium text-ink-3">{p.priceINR === 0 ? 'free' : p.billingType === 'ANNUAL' ? 'per year' : 'one time'}</span>
+                    </p>
+                    {isCurrent ? (
+                      <Button variant="secondary" disabled>Your current plan</Button>
+                    ) : p.priceINR === 0 ? (
+                      <Button variant="secondary" to="/start">Start free test</Button>
+                    ) : (
+                      <Button variant={featured ? 'primary' : 'secondary'} onClick={() => openCheckout(p.code)}>Choose {d.name}</Button>
+                    )}
+                    <ul className="flex flex-col gap-3 border-t border-line pt-5">
+                      {p.features.map((f) => (
+                        <li key={f} className="flex gap-2.5 text-[15px] leading-snug">
+                          <Check className="mt-0.5 h-[18px] w-[18px] shrink-0 text-leaf-600" aria-hidden="true" />{f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
+          )}
+        </section>
+      ) : (
+        <section className="page grid gap-5 pb-20 lg:grid-cols-[1.4fr_1fr]">
+          <div className="flex flex-col gap-5 rounded-3xl border-2 border-royal-500 p-8">
+            <div className="flex items-center gap-3">
+              <Character who="harjeet" size={56} />
+              <Character who="fatima" size={56} />
+              <h2 className="ml-1 text-xl font-bold">School Pilot</h2>
+            </div>
+            <p className="flex items-baseline gap-1.5">
+              <span className="font-display text-[44px] font-bold">{formatINR(school?.priceINR ?? 19999)}</span>
+              <span className="text-[15px] text-ink-3">per year</span>
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => openCheckout('SCHOOL_PILOT')}>Start the pilot</Button>
+              <Button variant="secondary" to="/contact">Book a school demo</Button>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {(school?.features || []).map((f) => (
+                <li key={f} className="flex gap-2.5 text-[15px]"><Check className="mt-0.5 h-[18px] w-[18px] shrink-0 text-leaf-600" aria-hidden="true" />{f}</li>
+              ))}
+            </ul>
           </div>
+          <div className="card-muted flex flex-col gap-4 p-8">
+            <h2 className="text-xl font-bold">Groups & districts</h2>
+            <p className="leading-relaxed text-ink-2">Multi-campus groups, state programmes and NGOs get custom pricing, single sign-on and data agreements.</p>
+            <Button variant="secondary" to="/contact" className="self-start">Talk to our team</Button>
+          </div>
+        </section>
+      )}
 
-          <div className="flex items-center gap-4 text-xs font-semibold text-slate-300 whitespace-nowrap">
-            <span className="flex items-center gap-1">
-              <Lock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Razorpay Secured</span>
-            </span>
-            <span>•</span>
-            <span>GST Invoice Included</span>
-          </div>
+      <section className="border-t border-line bg-mist">
+        <div className="page grid gap-6 py-14 sm:grid-cols-2 lg:grid-cols-4">
+          {[['Pay your way', 'UPI, cards, net banking and wallets through Razorpay.'], ['GST invoice', 'Downloadable from Billing right after purchase.'], ['Renewal reminders', 'We remind you before any yearly plan renews.'], ['Your data stays yours', 'DPDP Act 2023 compliant. Never sold.']].map(([t, b]) => (
+            <div key={t} className="flex flex-col gap-1.5">
+              <span className="text-[17px] font-bold">{t}</span>
+              <span className="text-[15px] leading-relaxed text-ink-2">{b}</span>
+            </div>
+          ))}
         </div>
+      </section>
 
-      </div>
-    </div>
+      <section className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-20 sm:px-6">
+        <h2 className="h-section">Pricing questions</h2>
+        <dl className="flex flex-col divide-y divide-line border-y border-line">
+          {FAQ.map(([q, a]) => (
+            <div key={q} className="flex flex-col gap-2 py-5">
+              <dt className="text-lg font-semibold">{q}</dt>
+              <dd className="leading-relaxed text-ink-2">{a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </>
   );
 };

@@ -1,338 +1,226 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { MessageCircle, ShieldCheck, UserPlus } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import {
-  Users,
-  Compass,
-  IndianRupee,
-  ShieldCheck,
-  CheckCircle2,
-  Calendar,
-  Sparkles,
-  Calculator,
-  UserPlus,
-  ArrowRight,
-  Loader2
-} from 'lucide-react';
+import { Dhruv } from '../components/brand';
+import { Character } from '../components/Character';
+import { Alert, Badge, Button, Field, FitBadge, PageHeader, ProgressBar, Skeleton, StateMessage } from '../components/ui';
+import { roadmapProgress } from '../components/Milestone';
+import { classLabel, formatINR, plainDimension } from '../lib/utils';
+
+const STREAMS = ['Engineering', 'Medical', 'Design', 'Law', 'Commerce', 'Humanities'];
 
 export const ParentPortalPage: React.FC = () => {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // Cost Planner state
-  const [stream, setStream] = useState('Engineering');
-  const [collegeType, setCollegeType] = useState('GOVERNMENT');
-  const [cityTier, setCityTier] = useState('TIER_1');
-  const [costEstimate, setCostEstimate] = useState<any>(null);
-
-  // Link student state
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [studentEmail, setStudentEmail] = useState('');
+  const [childIndex, setChildIndex] = useState(0);
+  const [cost, setCost] = useState({ stream: 'Engineering', collegeType: 'GOVERNMENT', cityTier: 'TIER_1' });
+  const [estimate, setEstimate] = useState<any>(null);
+  const [email, setEmail] = useState('');
   const [linking, setLinking] = useState(false);
-  const [linkMessage, setLinkMessage] = useState<string | null>(null);
+  const [linkMsg, setLinkMsg] = useState<{ tone: 'leaf' | 'danger'; text: string } | null>(null);
+  const [showLink, setShowLink] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const res = await ApiService.getParentOverview();
-      if (res.success) {
-        setData(res);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = () =>
+    ApiService.getParentOverview()
+      .then((res) => res.success && setData(res))
+      .catch(() => setData({ linkedStudents: [] }))
+      .finally(() => setLoading(false));
 
-  const calculateEstimate = async () => {
-    try {
-      const res = await ApiService.calculateCost({ stream, collegeType, cityTier });
-      if (res.success) {
-        setCostEstimate(res.estimate);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    fetchData();
-    calculateEstimate();
-  }, [stream, collegeType, cityTier]);
+    ApiService.calculateCost(cost).then((res) => res.success && setEstimate(res.estimate)).catch(() => setEstimate(null));
+  }, [cost]);
 
-  const handleLinkStudent = async (e: React.FormEvent) => {
+  const link = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentEmail.trim()) return;
-
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setLinkMsg({ tone: 'danger', text: 'Enter the email your child uses for FuturePath.' });
+      return;
+    }
     setLinking(true);
-    setLinkMessage(null);
+    setLinkMsg(null);
     try {
-      const res = await ApiService.linkStudent(studentEmail.trim(), 'Parent');
-      if (res.success) {
-        setLinkMessage(`Success: ${res.message}`);
-        setStudentEmail('');
-        await fetchData();
-        setTimeout(() => setLinkModalOpen(false), 1500);
-      }
+      const res = await ApiService.linkStudent(email.trim(), 'Parent');
+      setLinkMsg({ tone: 'leaf', text: res.message || 'Request sent. You’ll see the report once your child approves.' });
+      setEmail('');
+      load();
     } catch (err: any) {
-      setLinkMessage(`Error: ${err.message || 'Failed to link account'}`);
+      setLinkMsg({ tone: 'danger', text: err.message || 'We couldn’t send the request.' });
     } finally {
       setLinking(false);
     }
   };
 
   if (loading) {
+    return <div className="flex flex-col gap-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-56 rounded-3xl" /><Skeleton className="h-80 rounded-3xl" /></div>;
+  }
+
+  const children: any[] = data?.linkedStudents || [];
+  const child = children[childIndex];
+  const linkForm = (
+    <form onSubmit={link} className="flex flex-col gap-4">
+      <Field label="Your child’s FuturePath email" htmlFor="link-email" hint="We’ll ask them to approve before you can see anything.">
+        <input id="link-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="field-input" />
+      </Field>
+      {linkMsg && <Alert tone={linkMsg.tone}>{linkMsg.text}</Alert>}
+      <Button type="submit" loading={linking} className="self-start"><UserPlus className="h-4 w-4" aria-hidden="true" />Send link request</Button>
+    </form>
+  );
+
+  if (!child) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        <p className="text-sm">Loading Parent Collaboration Portal...</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader title={`Welcome, ${user?.name?.split(' ')[0] || ''}`} subtitle="Link to your child’s account to follow their progress." leading={<Character who="sunita" size={56} />} />
+        <section className="grid items-center gap-8 rounded-4xl border border-line bg-white p-7 sm:p-10 lg:grid-cols-[auto_1fr]">
+          <Dhruv pose="wave" size={150} decorative />
+          <div className="flex flex-col gap-5">
+            <h2 className="font-display text-2xl font-bold">Connect to your child’s FuturePath</h2>
+            <p className="leading-relaxed text-ink-2">Once linked, you’ll see the same report, matches and plan — and you can use the cost planner together.</p>
+            {linkForm}
+          </div>
+        </section>
       </div>
     );
   }
 
-  const linkedStudents = data?.linkedStudents || [];
+  const readiness = Object.entries<number>(child.latestAssessment?.readinessProfile || {}).sort((a, b) => b[1] - a[1]);
+  const strengths: string[] = child.latestAssessment?.topStrengths || [];
+  const plan = roadmapProgress(child.activeRoadmap);
+  const childFirst = child.studentName?.split(' ')[0];
+  const pending = child.status && child.status !== 'APPROVED' && child.status !== 'ACTIVE';
+  const share = `${childFirst}'s FuturePath report: recommended stream ${readiness[0]?.[0] || '—'}. Top careers: ${(child.topCareers || []).slice(0, 3).map((c: any) => c.title).join(', ')}.`;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold border border-amber-500/20">
-              <Users className="w-3.5 h-3.5" />
-              <span>Parent Empowerment Portal</span>
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">
-              Family Education Intelligence: {user?.name}
-            </h1>
-            <p className="text-xs text-slate-400">
-              Consent-based student progress, objective stream diagnostics, and 4-year financial planning.
-            </p>
-          </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        leading={<Character who="aarav" mood="wave" size={64} />}
+        title={`${childFirst}’s progress`}
+        subtitle={`${classLabel(child.currentClass)} · ${child.board || 'Board not set'} · ${child.studentEmail}`}
+        actions={
+          <>
+            {children.length > 1 && (
+              <>
+                <label htmlFor="child-select" className="sr-only">Choose child</label>
+                <select id="child-select" value={childIndex} onChange={(e) => setChildIndex(Number(e.target.value))} className="min-h-[44px] rounded-xl border border-line-strong bg-white px-3 font-semibold">
+                  {children.map((c, i) => <option key={c.linkId} value={i}>{c.studentName}</option>)}
+                </select>
+              </>
+            )}
+            {child.latestAssessment && (
+              <Button variant="whatsapp" size="sm" href={`https://wa.me/?text=${encodeURIComponent(share)}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />Share on WhatsApp</Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setShowLink((v) => !v)}><UserPlus className="h-4 w-4" aria-hidden="true" />Add a child</Button>
+          </>
+        }
+      />
 
-          <button
-            onClick={() => setLinkModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-colors flex items-center gap-2"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Link Child's Account</span>
-          </button>
-        </div>
+      {showLink && <section className="card p-6">{linkForm}</section>}
+      {pending && <Alert tone="saffron">Waiting for {childFirst} to approve your link. You’ll see the full report after that.</Alert>}
 
-        {/* Linked Children Cards */}
-        <div className="space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <span>Linked Children ({linkedStudents.length})</span>
-          </h2>
-
-          {linkedStudents.length > 0 ? (
-            <div className="space-y-6">
-              {linkedStudents.map((child: any, i: number) => (
-                <div
-                  key={i}
-                  className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-6 shadow-xl"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-white">{child.studentName}</h3>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-800 text-cyan-300">
-                          {child.currentClass === 'CLASS_10' ? 'Class 10' : 'Class 12'} • {child.board}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5">{child.studentEmail} • Relationship: {child.relationship}</p>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs text-slate-400">Profile Readiness</span>
-                      <p className="text-lg font-bold text-emerald-400">{child.completionScore}%</p>
-                    </div>
-                  </div>
-
-                  {/* Assessment Summary for Parent */}
-                  {child.latestAssessment ? (
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                      <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Psychometric Diagnostic Summary
-                      </span>
-                      <p className="text-xs text-slate-300 leading-relaxed font-normal">
-                        {child.latestAssessment.summary}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <span className="text-[11px] text-slate-400">Natural Cognitive Strengths:</span>
-                        {child.latestAssessment.topStrengths?.map((str: string, sIdx: number) => (
-                          <span key={sIdx} className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 text-cyan-300">
-                            {str}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
-                      Child has not completed the 16-D assessment yet.
-                    </div>
-                  )}
-
-                  {/* Top Matched Careers for Parent Review */}
-                  <div className="space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                      Top Recommended Careers for Collaborative Discussion
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {child.topCareers?.slice(0, 3).map((car: any, cIdx: number) => (
-                        <div key={cIdx} className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-[10px] font-bold text-cyan-400">{car.category}</span>
-                            <span className="text-emerald-400 font-bold">{car.matchScore}%</span>
-                          </div>
-                          <h4 className="text-xs font-bold text-white truncate">{car.title}</h4>
-                          <span className="text-[10px] text-slate-400 block">Salary: {car.salaryRange}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-3">
-              <Users className="w-10 h-10 mx-auto text-amber-400" />
-              <h3 className="text-base font-bold text-white">No Children Linked Yet</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Click "Link Child's Account" above and enter your child's registered email to view permitted reports and roadmaps.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Higher Education Financial Planning Estimator */}
-        <div className="p-8 rounded-2xl glass-panel bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
-          <div className="flex items-center gap-2">
-            <Calculator className="w-5 h-5 text-emerald-400" />
-            <div>
-              <h2 className="text-xl font-bold text-white">Higher Education Cost Estimator</h2>
-              <p className="text-xs text-slate-400">Calculate realistic 4-year tuition, accommodation, and entrance coaching financial needs.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div>
-              <label className="text-slate-400 font-semibold block mb-1.5">Target Field of Study:</label>
-              <select
-                value={stream}
-                onChange={(e) => setStream(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
-              >
-                <option value="Engineering">Engineering (B.Tech / B.E.)</option>
-                <option value="Medical">Medical (MBBS / BDS)</option>
-                <option value="Commerce">Commerce & Management (B.Com / BBA / CA)</option>
-                <option value="Law">Law (5-Year Integrated B.A. LL.B)</option>
-                <option value="Design">Design (B.Des / Architecture)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-slate-400 font-semibold block mb-1.5">Institution Tier:</label>
-              <select
-                value={collegeType}
-                onChange={(e) => setCollegeType(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
-              >
-                <option value="GOVERNMENT">Government / IIT / NIT / AIIMS</option>
-                <option value="PRIVATE">Accredited Private University / BITS</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-slate-400 font-semibold block mb-1.5">Study City Tier:</label>
-              <select
-                value={cityTier}
-                onChange={(e) => setCityTier(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
-              >
-                <option value="TIER_1">Tier-1 Metro (Delhi, Mumbai, Bengaluru)</option>
-                <option value="TIER_2">Tier-2 City (Pune, Jaipur, Chandigarh, Indore)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Result Card */}
-          {costEstimate && (
-            <div className="p-6 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Annual Tuition</span>
-                  <span className="text-base font-bold text-white">₹{(costEstimate.annualTuitionINR / 1000).toLocaleString('en-IN')}k</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Annual Hostel/Living</span>
-                  <span className="text-base font-bold text-white">₹{(costEstimate.annualLivingINR / 1000).toLocaleString('en-IN')}k</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Total {costEstimate.degreeDurationYears}-Year Estimated Need</span>
-                  <span className="text-lg font-black text-cyan-400">₹{(costEstimate.totalEstimatedCostINR / 100000).toFixed(1)} Lakhs</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Suggested Monthly Savings</span>
-                  <span className="text-base font-bold text-emerald-400">₹{costEstimate.suggestedMonthlySavingsINR.toLocaleString('en-IN')} / mo</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Link Child Modal */}
-      {linkModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-700 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-white">Link Your Child's Student Account</h3>
-            <p className="text-xs text-slate-400">
-              Enter the email address your child used to register on FuturePath AI. A consent-based link will be created.
-            </p>
-
-            <form onSubmit={handleLinkStudent} className="space-y-4">
-              <input
-                type="email"
-                placeholder="e.g. student@futurepath.ai"
-                value={studentEmail}
-                onChange={(e) => setStudentEmail(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-cyan-400"
-              />
-
-              {linkMessage && (
-                <p className={`text-xs ${linkMessage.startsWith('Success') ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {linkMessage}
+      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+        <section className="flex flex-col gap-5 rounded-4xl border border-line bg-white p-6 sm:p-8">
+          <span className="eyebrow">In plain words</span>
+          {child.latestAssessment ? (
+            <>
+              <h2 className="font-display text-[26px] font-bold leading-tight">
+                {childFirst}’s best-fit stream is {readiness[0]?.[0] || '—'}.
+              </h2>
+              {strengths.length > 0 && (
+                <p className="leading-relaxed text-ink-2">
+                  Strongest areas: {strengths.slice(0, 3).map((s) => plainDimension(s).toLowerCase()).join(', ')}.
                 </p>
               )}
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setLinkModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 text-xs text-slate-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={linking}
-                  className="px-5 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-xs font-bold text-white flex items-center gap-1.5"
-                >
-                  {linking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  <span>Confirm Link</span>
-                </button>
+              <div className="flex flex-col gap-2">
+                {(child.topCareers || []).slice(0, 4).map((c: any) => (
+                  <div key={c.title} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-mist px-4 py-3">
+                    <span className="flex flex-col"><span className="font-bold">{c.title}</span><span className="text-sm text-ink-3">{c.category} · {c.salaryRange}</span></span>
+                    <FitBadge score={c.matchScore} />
+                  </div>
+                ))}
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </>
+          ) : (
+            <StateMessage compact pose="backpack" title={`${childFirst} hasn’t taken the test yet`} body="Once they finish the 25-minute discovery test, the report appears here." />
+          )}
+        </section>
 
+        <section className="card flex flex-col gap-4 p-6">
+          <h2 className="text-lg font-bold">Good questions to ask {childFirst}</h2>
+          <ul className="flex list-disc flex-col gap-2.5 pl-5 leading-relaxed text-ink-2">
+            <li>Which subject do you lose track of time in?</li>
+            <li>{child.topCareers?.[0] ? `Does the day-to-day work of ${child.topCareers[0].title.split(' & ')[0]} sound fun to you?` : 'What kind of work sounds fun to you?'}</li>
+            <li>How do you feel about two years of entrance exam preparation?</li>
+          </ul>
+        </section>
+      </div>
+
+      <section aria-label="Status" className="grid gap-3 sm:grid-cols-3">
+        <div className="card flex flex-col gap-1 p-5"><span className="text-sm text-ink-3">Discovery test</span><span className="text-xl font-bold">{child.latestAssessment ? <span className="text-leaf-700">Completed</span> : 'Not yet'}</span></div>
+        <div className="card flex flex-col gap-2 p-5">
+          <span className="text-sm text-ink-3">Plan</span>
+          <span className="text-xl font-bold">{child.activeRoadmap ? `${plan.done} of ${plan.total} tasks` : 'Not started'}</span>
+          {child.activeRoadmap && <ProgressBar value={plan.done} max={plan.total || 1} tone="saffron" label="Plan progress" />}
+        </div>
+        <div className="card flex flex-col gap-2 p-5">
+          <span className="text-sm text-ink-3">Profile</span>
+          <span className="text-xl font-bold">{child.completionScore}% complete</span>
+          <ProgressBar value={child.completionScore} label="Profile completion" />
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
+        <section aria-labelledby="cost-title" className="card flex flex-col gap-5 p-6 sm:p-8">
+          <div className="flex flex-col gap-1">
+            <h2 id="cost-title" className="text-xl font-bold">Higher-education cost planner</h2>
+            <p className="text-[15px] text-ink-3">Estimates for the full degree. Change the options to compare.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Field" htmlFor="cost-stream">
+              <select id="cost-stream" value={cost.stream} onChange={(e) => setCost((c) => ({ ...c, stream: e.target.value }))} className="field-input">{STREAMS.map((s) => <option key={s}>{s}</option>)}</select>
+            </Field>
+            <Field label="College type" htmlFor="cost-type">
+              <select id="cost-type" value={cost.collegeType} onChange={(e) => setCost((c) => ({ ...c, collegeType: e.target.value }))} className="field-input"><option value="GOVERNMENT">Government</option><option value="PRIVATE">Private</option></select>
+            </Field>
+            <Field label="City" htmlFor="cost-city">
+              <select id="cost-city" value={cost.cityTier} onChange={(e) => setCost((c) => ({ ...c, cityTier: e.target.value }))} className="field-input"><option value="TIER_1">Metro / Tier 1</option><option value="TIER_2">Tier 2 city</option></select>
+            </Field>
+          </div>
+          {estimate && (
+            <>
+              <dl className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
+                {[[`Tuition (${estimate.degreeDurationYears} years)`, estimate.totalTuitionINR], ['Hostel and living', estimate.totalLivingINR], ['Books and equipment', estimate.totalIncidentalsINR]].map(([k, v]) => (
+                  <div key={k as string} className="flex justify-between gap-4 px-5 py-3.5"><dt className="text-ink-2">{k}</dt><dd className="font-semibold">{formatINR(v as number)}</dd></div>
+                ))}
+                <div className="flex justify-between gap-4 bg-mist px-5 py-4"><dt className="font-bold">Total estimate</dt><dd className="font-display text-2xl font-bold">{formatINR(estimate.totalEstimatedCostINR)}</dd></div>
+              </dl>
+              <p className="rounded-2xl bg-leaf-50 px-4 py-3 text-[15px] text-leaf-900">Saving about <strong>{formatINR(estimate.suggestedMonthlySavingsINR)} a month</strong> from now would cover it. <Link to="/scholarships" className="underline">See scholarships</Link></p>
+              <p className="text-[13px] text-ink-3">{estimate.disclaimer}</p>
+            </>
+          )}
+        </section>
+
+        <div className="flex flex-col gap-6">
+          <section className="flex flex-col gap-4 rounded-3xl bg-ink p-6 text-white">
+            <div className="flex items-center gap-3">
+              <Character who="ananya" size={52} />
+              <h2 className="text-lg font-bold text-white">Talk to a counsellor</h2>
+            </div>
+            <p className="text-[15px] leading-relaxed text-night-text">Verified counsellors for a one-on-one family session about streams, exams and colleges.</p>
+            <Button to="/counselors" variant="white" size="sm" className="self-start">See available counsellors</Button>
+          </section>
+          <section className="card flex flex-col gap-2.5 p-6">
+            <h2 className="flex items-center gap-2 text-lg font-bold"><ShieldCheck className="h-5 w-5 text-leaf-600" aria-hidden="true" />Access and privacy</h2>
+            <p className="text-[15px] leading-relaxed text-ink-2">
+              Link status: <Badge tone={pending ? 'saffron' : 'leaf'}>{pending ? 'Waiting for approval' : 'Approved'}</Badge>
+            </p>
+            <p className="text-[15px] leading-relaxed text-ink-2">You see the report, matches and plan. Either of you can remove the link at any time.</p>
+          </section>
+        </div>
+      </div>
     </div>
   );
 };

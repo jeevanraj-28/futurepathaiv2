@@ -1,113 +1,134 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { Navbar } from './components/Navbar';
-import { Footer } from './components/Footer';
-import { CheckoutModal } from './components/CheckoutModal';
+import React, { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { CheckoutProvider } from './context/CheckoutContext';
+import { PublicLayout } from './components/layout/PublicLayout';
+import { AdaptiveLayout, AppLayout } from './components/layout/AppLayout';
+import { Spinner } from './components/ui';
 
-// Pages
 import { HomePage } from './pages/HomePage';
-import { CareerExplorerPage } from './pages/CareerExplorerPage';
-import { StreamSelectionPage } from './pages/StreamSelectionPage';
-import { AssessmentWorkspacePage } from './pages/AssessmentWorkspacePage';
-import { AssessmentResultsPage } from './pages/AssessmentResultsPage';
-import { StudentDashboardPage } from './pages/StudentDashboardPage';
-import { RoadmapBuilderPage } from './pages/RoadmapBuilderPage';
-import { AIMentorChatPage } from './pages/AIMentorChatPage';
-import { CollegeFinderPage } from './pages/CollegeFinderPage';
-import { ExamGuidePage } from './pages/ExamGuidePage';
-import { ScholarshipFinderPage } from './pages/ScholarshipFinderPage';
-import { PricingPage } from './pages/PricingPage';
-import { ParentPortalPage } from './pages/ParentPortalPage';
-import { SchoolPortalPage } from './pages/SchoolPortalPage';
-import { CounselorPortalPage } from './pages/CounselorPortalPage';
-import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { BillingCenterPage } from './pages/BillingCenterPage';
-import { OnboardingWizardPage } from './pages/OnboardingWizardPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
-import {
-  HowItWorksPage,
-  ForParentsPage,
-  ForSchoolsPage,
-  ForCounselorsPage,
-  AboutPage,
-  ContactPage,
-  PrivacyPolicyPage,
-  TermsPage,
-  RefundPolicyPage
-} from './pages/StaticPages';
+import { QuickStartPage } from './pages/QuickStartPage';
+import { AssessmentWorkspacePage } from './pages/AssessmentWorkspacePage';
+import { SaveResultsPage } from './pages/SaveResultsPage';
 
-const AppContent: React.FC = () => {
-  const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+// Larger, signed-in or less-visited screens load on demand to keep the first page fast on slow connections.
+const PricingPage = lazy(() => import('./pages/PricingPage').then((m) => ({ default: m.PricingPage })));
+const AssessmentResultsPage = lazy(() => import('./pages/AssessmentResultsPage').then((m) => ({ default: m.AssessmentResultsPage })));
+const StudentDashboardPage = lazy(() => import('./pages/StudentDashboardPage').then((m) => ({ default: m.StudentDashboardPage })));
+const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
+const CareerExplorerPage = lazy(() => import('./pages/CareerExplorerPage').then((m) => ({ default: m.CareerExplorerPage })));
+const CareerDetailPage = lazy(() => import('./pages/CareerDetailPage').then((m) => ({ default: m.CareerDetailPage })));
+const StreamSelectionPage = lazy(() => import('./pages/StreamSelectionPage').then((m) => ({ default: m.StreamSelectionPage })));
+const CollegeFinderPage = lazy(() => import('./pages/CollegeFinderPage').then((m) => ({ default: m.CollegeFinderPage })));
+const ExamGuidePage = lazy(() => import('./pages/ExamGuidePage').then((m) => ({ default: m.ExamGuidePage })));
+const ScholarshipFinderPage = lazy(() => import('./pages/ScholarshipFinderPage').then((m) => ({ default: m.ScholarshipFinderPage })));
+const RoadmapBuilderPage = lazy(() => import('./pages/RoadmapBuilderPage').then((m) => ({ default: m.RoadmapBuilderPage })));
+const AIMentorChatPage = lazy(() => import('./pages/AIMentorChatPage').then((m) => ({ default: m.AIMentorChatPage })));
+const CounselorPortalPage = lazy(() => import('./pages/CounselorPortalPage').then((m) => ({ default: m.CounselorPortalPage })));
+const ParentPortalPage = lazy(() => import('./pages/ParentPortalPage').then((m) => ({ default: m.ParentPortalPage })));
+const SchoolPortalPage = lazy(() => import('./pages/SchoolPortalPage').then((m) => ({ default: m.SchoolPortalPage })));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const BillingCenterPage = lazy(() => import('./pages/BillingCenterPage').then((m) => ({ default: m.BillingCenterPage })));
+const OnboardingWizardPage = lazy(() => import('./pages/OnboardingWizardPage').then((m) => ({ default: m.OnboardingWizardPage })));
+type StaticPageName = keyof typeof import('./pages/StaticPages');
+const staticPage = (name: StaticPageName) =>
+  lazy(() => import('./pages/StaticPages').then((m) => ({ default: m[name] as React.ComponentType })));
+const HowItWorksPage = staticPage('HowItWorksPage');
+const ForParentsPage = staticPage('ForParentsPage');
+const ForSchoolsPage = staticPage('ForSchoolsPage');
+const ForCounselorsPage = staticPage('ForCounselorsPage');
+const AboutPage = staticPage('AboutPage');
+const ContactPage = staticPage('ContactPage');
+const PrivacyPolicyPage = staticPage('PrivacyPolicyPage');
+const TermsPage = staticPage('TermsPage');
+const RefundPolicyPage = staticPage('RefundPolicyPage');
 
-  return (
-    <div className="flex flex-col min-h-screen bg-slate-950">
-      <Navbar onOpenCheckout={(plan) => setCheckoutPlan(plan)} />
-      
-      <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<HomePage onOpenCheckout={(plan) => setCheckoutPlan(plan)} />} />
-          <Route path="/careers" element={<CareerExplorerPage />} />
-          <Route path="/stream-guide" element={<StreamSelectionPage />} />
-          <Route path="/assessment" element={<AssessmentWorkspacePage />} />
-          <Route path="/assessment/results" element={<AssessmentResultsPage />} />
-          <Route path="/colleges" element={<CollegeFinderPage />} />
-          <Route path="/exams" element={<ExamGuidePage />} />
-          <Route path="/scholarships" element={<ScholarshipFinderPage />} />
-          <Route path="/pricing" element={<PricingPage onOpenCheckout={(plan) => setCheckoutPlan(plan)} />} />
-          
-          {/* Authenticated Application Routes */}
-          <Route path="/dashboard" element={<StudentDashboardPage onOpenCheckout={(plan) => setCheckoutPlan(plan)} />} />
-          <Route path="/onboarding" element={<OnboardingWizardPage />} />
-          <Route path="/roadmap" element={<RoadmapBuilderPage />} />
-          <Route path="/ai-mentor" element={<AIMentorChatPage />} />
-          <Route path="/parent-portal" element={<ParentPortalPage />} />
-          <Route path="/school-portal" element={<SchoolPortalPage />} />
-          <Route path="/counselors" element={<CounselorPortalPage />} />
-          <Route path="/counselor-portal" element={<CounselorPortalPage />} />
-          <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/billing" element={<BillingCenterPage onOpenCheckout={(plan) => setCheckoutPlan(plan)} />} />
-
-          {/* Auth & Static Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/how-it-works" element={<HowItWorksPage />} />
-          <Route path="/for-parents" element={<ForParentsPage />} />
-          <Route path="/for-schools" element={<ForSchoolsPage />} />
-          <Route path="/for-counselors" element={<ForCounselorsPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/refund-policy" element={<RefundPolicyPage />} />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-
-      <Footer />
-
-      {/* Global Checkout Modal */}
-      {checkoutPlan && (
-        <CheckoutModal
-          planCode={checkoutPlan}
-          onClose={() => setCheckoutPlan(null)}
-        />
-      )}
-    </div>
-  );
+const ScrollToTop: React.FC = () => {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
 };
 
-export const App: React.FC = () => {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </BrowserRouter>
-  );
-};
+const AppRoutes: React.FC = () => (
+  <Suspense fallback={<Spinner className="min-h-[60vh]" />}>
+    <Routes>
+      {/* Marketing and information pages */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/for-parents" element={<ForParentsPage />} />
+        <Route path="/for-schools" element={<ForSchoolsPage />} />
+        <Route path="/for-counselors" element={<ForCounselorsPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/refund-policy" element={<RefundPolicyPage />} />
+      </Route>
+
+      {/* Focused flows: no site navigation to distract */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/start" element={<QuickStartPage />} />
+      <Route path="/assessment" element={<AssessmentWorkspacePage />} />
+      <Route path="/assessment/save" element={<SaveResultsPage />} />
+
+      {/* Discovery: public for visitors, inside the app once signed in */}
+      <Route element={<AdaptiveLayout publicLayout={<PublicLayout />} />}>
+        <Route path="/discover" element={<DiscoverPage />} />
+        <Route path="/careers" element={<CareerExplorerPage />} />
+        <Route path="/careers/:slug" element={<CareerDetailPage />} />
+        <Route path="/stream-guide" element={<StreamSelectionPage />} />
+        <Route path="/colleges" element={<CollegeFinderPage />} />
+        <Route path="/exams" element={<ExamGuidePage />} />
+        <Route path="/scholarships" element={<ScholarshipFinderPage />} />
+      </Route>
+
+      {/* Signed-in app */}
+      <Route element={<AppLayout roles={['STUDENT']} />}>
+        <Route path="/dashboard" element={<StudentDashboardPage />} />
+        <Route path="/assessment/results" element={<AssessmentResultsPage />} />
+        <Route path="/plan" element={<RoadmapBuilderPage />} />
+        <Route path="/mentor" element={<AIMentorChatPage />} />
+        <Route path="/onboarding" element={<OnboardingWizardPage />} />
+      </Route>
+      <Route element={<AppLayout roles={['PARENT']} />}>
+        <Route path="/parent-portal" element={<ParentPortalPage />} />
+      </Route>
+      <Route element={<AppLayout roles={['SCHOOL_ADMIN']} />}>
+        <Route path="/school-portal" element={<SchoolPortalPage />} />
+      </Route>
+      <Route element={<AppLayout roles={['COUNSELOR']} />}>
+        <Route path="/counselor-portal" element={<CounselorPortalPage mode="counselor" />} />
+      </Route>
+      <Route element={<AppLayout roles={['PLATFORM_ADMIN']} />}>
+        <Route path="/admin" element={<AdminDashboardPage />} />
+      </Route>
+      <Route element={<AppLayout />}>
+        <Route path="/counselors" element={<CounselorPortalPage mode="marketplace" />} />
+        <Route path="/billing" element={<BillingCenterPage />} />
+      </Route>
+
+      {/* Old links keep working */}
+      <Route path="/roadmap" element={<Navigate to="/plan" replace />} />
+      <Route path="/ai-mentor" element={<Navigate to="/mentor" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  </Suspense>
+);
+
+export const App: React.FC = () => (
+  <BrowserRouter>
+    <AuthProvider>
+      <CheckoutProvider>
+        <ScrollToTop />
+        <AppRoutes />
+      </CheckoutProvider>
+    </AuthProvider>
+  </BrowserRouter>
+);
 
 export default App;

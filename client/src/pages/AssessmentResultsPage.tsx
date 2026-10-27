@@ -1,282 +1,273 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Download, MessageCircle, RotateCcw } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  Compass,
-  CheckCircle2,
-  TrendingUp,
-  Download,
-  Share2,
-  BookOpen,
-  GraduationCap,
-  Sparkles,
-  ArrowRight,
-  Shield,
-  IndianRupee,
-  Layers,
-  Award
-} from 'lucide-react';
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip
-} from 'recharts';
+import { useAuth } from '../context/AuthContext';
+import { useCheckout } from '../context/CheckoutContext';
+import { Dhruv } from '../components/brand';
+import { Badge, Button, FitBadge, Segmented, Skeleton, StateMessage } from '../components/ui';
+import { DIMENSION_DETAIL, cn, demandLabel, fitBand, formatLPA, plainDimension, strengthBand } from '../lib/utils';
+
+const FREE_VISIBLE = 3;
+
+const T = {
+  en: { stream: 'Recommended stream', strengths: 'What you’re naturally good at', careers: 'Careers that fit you', share: 'Share on WhatsApp', next: 'Your next steps' },
+  hi: { stream: 'सुझाई गई स्ट्रीम', strengths: 'आप किन चीज़ों में स्वाभाविक रूप से अच्छे हैं', careers: 'आपके लिए उपयुक्त करियर', share: 'WhatsApp पर भेजें', next: 'आपके अगले कदम' },
+};
 
 export const AssessmentResultsPage: React.FC = () => {
+  const { user, subscription } = useAuth();
+  const { openCheckout } = useCheckout();
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [missing, setMissing] = useState(false);
+  const [lang, setLang] = useState<'en' | 'hi'>('en');
+  const [showAll, setShowAll] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const t = T[lang];
+  const isFree = !subscription || subscription.planCode === 'FREE';
 
   useEffect(() => {
-    ApiService.getAssessmentResults().then(res => {
-      if (res.success && res.result) {
-        setResult(res.result);
-      }
-    }).catch(err => {
-      console.error(err);
-    }).finally(() => {
-      setLoading(false);
-    });
+    ApiService.getAssessmentResults()
+      .then((res) => (res.success ? setResult(res.result) : setMissing(true)))
+      .catch(() => setMissing(true))
+      .finally(() => setLoading(false));
   }, []);
+
+  const dims = useMemo(
+    () => Object.entries<number>(result?.dimensionScores || {}).sort((a, b) => b[1] - a[1]),
+    [result]
+  );
+  const streams = useMemo(
+    () => Object.entries<number>(result?.readinessProfile || {}).sort((a, b) => b[1] - a[1]),
+    [result]
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        <p className="text-sm">Synthesizing 16-Dimension Career Dossier...</p>
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-12 w-2/3" />
+        <div className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-52 rounded-3xl" />)}</div>
+        <Skeleton className="h-80 rounded-3xl" />
       </div>
     );
   }
 
-  if (!result) {
+  if (missing || !result) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-4 space-y-4">
-        <Compass className="w-12 h-12 text-cyan-400" />
-        <h2 className="text-xl font-bold text-white">No Assessment Completed Yet</h2>
-        <p className="text-xs text-slate-400 max-w-sm">Take the 40-question cognitive assessment to unlock your personalized results.</p>
-        <Link to="/assessment" className="px-6 py-2.5 rounded-xl bg-brand-600 text-white font-bold text-xs">
-          Take Assessment
-        </Link>
+      <div className="card">
+        <StateMessage
+          pose="backpack"
+          title="You haven’t taken the discovery test yet"
+          body="It takes about 25 minutes and works on any device. Your report will appear here."
+          action={<Button to="/start">Start the test</Button>}
+        />
       </div>
     );
   }
 
-  // Format Recharts data for radar chart
-  const radarData = Object.entries(result.dimensionScores || {}).map(([dim, score]) => ({
-    dimension: dim.length > 14 ? dim.slice(0, 12) + '..' : dim,
-    fullDimension: dim,
-    score: score as number
-  }));
-
-  // Format Stream Readiness Bar Data
-  const readinessData = Object.entries(result.readinessProfile || {}).map(([stream, pct]) => ({
-    stream,
-    suitability: pct as number
-  }));
+  const recs: any[] = result.recommendations || [];
+  const visible = isFree ? recs.slice(0, FREE_VISIBLE) : recs;
+  const locked = isFree ? recs.slice(FREE_VISIBLE) : [];
+  const [topStream, topStreamScore] = streams[0] || ['—', 0];
+  const top3 = dims.slice(0, 3);
+  const growing = dims[dims.length - 1];
+  const firstName = user?.name?.split(' ')[0] || 'You';
+  const headline = top3.length >= 2
+    ? `${firstName === 'You' ? 'You’re' : `${firstName}, you’re`} strongest at ${plainDimension(top3[0][0]).toLowerCase()} and ${plainDimension(top3[1][0]).toLowerCase()}.`
+    : 'Here’s what your answers say about you.';
+  const shareText = `My FuturePath AI report: recommended stream ${topStream}. Top careers: ${recs.slice(0, 3).map((r) => r.title).join(', ')}. ${window.location.origin}`;
+  const nextSteps: string[] = recs[0]?.suggestedNextSteps || [];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        
-        {/* Header Bar */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Assessment Verified & Scored</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              Evidence-Informed Career Dossier
-            </h1>
-            <p className="text-xs text-slate-400">
-              Completed on {new Date(result.completedAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })} • Explainable 16-Dimension Synthesis
+    <div className="flex flex-col gap-10 print:gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <Link to="/plan" className="inline-flex min-h-[44px] items-center gap-2 font-semibold text-ink-2 hover:text-ink">
+          <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />My plan
+        </Link>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Segmented size="sm" label="Language" value={lang} onChange={setLang} options={[{ value: 'en', label: 'English' }, { value: 'hi', label: 'हिन्दी' }]} />
+          <Button variant="secondary" size="sm" onClick={() => window.print()}><Download className="h-4 w-4" aria-hidden="true" />PDF</Button>
+          <Button variant="whatsapp" size="sm" href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}>
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />{t.share}
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <section className="flex flex-col gap-7 rounded-4xl border border-line bg-white p-6 sm:p-10">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex max-w-3xl flex-col gap-3">
+            <p className="text-sm font-semibold text-ink-3">
+              {user?.name} · Test taken {result.completedAt ? new Date(result.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'recently'}
             </p>
+            <h1 className="h-display text-[32px] sm:text-[42px]">{headline}</h1>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2 text-xs font-bold rounded-xl glass-panel bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-200 transition-colors flex items-center gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Print / Save Dossier</span>
-            </button>
-            <Link
-              to="/roadmap"
-              className="px-5 py-2 text-xs font-bold rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-md glow-blue transition-colors flex items-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
-              <span>Create 5-Year Roadmap</span>
-            </Link>
-          </div>
+          <Dhruv pose="celebrate" size={140} className="print:hidden" decorative />
         </div>
-
-        {/* Executive Summary Card */}
-        <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-700 space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            Executive Cognitive Summary
-          </h2>
-          <p className="text-sm text-slate-200 leading-relaxed font-medium">
-            {result.summaryReport}
-          </p>
-          <div className="flex flex-wrap gap-2 pt-2">
-            <span className="text-xs text-slate-400 font-semibold self-center">Primary Strengths:</span>
-            {result.strengthProfile?.map((str: string, i: number) => (
-              <span key={i} className="px-2.5 py-1 text-xs font-bold rounded-lg bg-brand-500/20 text-cyan-300 border border-brand-500/30">
-                {str}
-              </span>
-            ))}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="flex flex-col gap-2.5 rounded-3xl border-2 border-royal-500 p-6">
+            <span className="eyebrow">{t.stream}</span>
+            <span className="font-display text-3xl font-bold">{topStream}</span>
+            <FitBadge score={topStreamScore} />
+            <span className="text-[15px] leading-relaxed text-ink-2">Based on how your reasoning, interests and values line up with what this stream asks of you.</span>
           </div>
-        </div>
-
-        {/* Multi-Dimensional Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Radar Chart (16 Dimensions) */}
-          <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-white">16-Dimension Cognitive Radar</h3>
-              <p className="text-xs text-slate-400">Aptitude, problem-solving style, and work preferences across normalized 0-100 scales.</p>
-            </div>
-
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#334155" />
-                  <PolarAngleAxis dataKey="dimension" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#475569" />
-                  <Radar
-                    name="Score"
-                    dataKey="score"
-                    stroke="#06b6d4"
-                    fill="#0284c7"
-                    fillOpacity={0.45}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                    itemStyle={{ color: '#38bdf8' }}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Stream Readiness Bar Chart */}
-          <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white">Stream Readiness Breakdown</h3>
-              <p className="text-xs text-slate-400">Evaluates alignment of current cognitive profile against requirements of major Indian academic streams.</p>
-            </div>
-
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={readinessData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                  <XAxis type="number" domain={[0, 100]} stroke="#475569" />
-                  <YAxis type="category" dataKey="stream" stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 11 }} width={120} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                    itemStyle={{ color: '#34d399' }}
-                  />
-                  <Bar dataKey="suitability" fill="#2563eb" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
-              💡 <strong>Note on Eligibility vs Suitability:</strong> High stream suitability indicates your natural strengths align well. Eligibility depends strictly on board cutoffs and prerequisites.
-            </div>
-          </div>
-
-        </div>
-
-        {/* Explainable Top Career Recommendations */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-white">Top Explainable Career Matches</h2>
-              <p className="text-xs text-slate-400 mt-1">Multi-factor compatibility based on your strengths, favourite subjects, and work values.</p>
-            </div>
-            <Link to="/careers" className="text-xs font-bold text-cyan-400 hover:underline">
-              View All 50+ Careers
-            </Link>
-          </div>
-
-          <div className="space-y-4">
-            {result.recommendations?.map((rec: any, idx: number) => (
-              <div
-                key={idx}
-                className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4 hover:border-slate-700 transition-all"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-brand-600/30 text-cyan-300 font-bold text-xs flex items-center justify-center">
-                        #{idx + 1}
-                      </span>
-                      <h3 className="text-lg font-bold text-white">{rec.title}</h3>
-                      <span className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-slate-800 text-slate-300">
-                        {rec.category} • Stream: {rec.stream}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 max-w-2xl">{rec.shortDescription}</p>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <div className="inline-flex items-baseline gap-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                      <span className="text-2xl font-black">{rec.matchScore}%</span>
-                      <span className="text-xs font-semibold">Match</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Why it matches narrative */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
-                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Why This Career Fits You
-                    </span>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">{rec.whyItMatches}</p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
-                    <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      Areas Where Additional Development Helps
-                    </span>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">{rec.areasToDevelop}</p>
-                  </div>
-                </div>
-
-                {/* Suggested Action Steps */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400 gap-3">
-                  <div>
-                    <span className="font-semibold text-slate-300">Next Action: </span>
-                    <span>{rec.suggestedNextSteps[0] || 'Review syllabus for primary entrance test'}</span>
-                  </div>
-
-                  <button
-                    onClick={() => navigate('/roadmap', { state: { targetCareer: rec.title } })}
-                    className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs flex items-center gap-1 self-start sm:self-auto transition-colors"
-                  >
-                    <span>Generate Milestone Roadmap</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+          <div className="flex flex-col gap-1 rounded-3xl border border-line p-6">
+            <span className="mb-2 text-[13px] font-bold uppercase tracking-[0.08em] text-ink-3">Also worth considering</span>
+            {streams.slice(1, 3).map(([name, score]) => (
+              <div key={name} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0">
+                <span className="font-bold">{name}</span><FitBadge score={score} />
               </div>
             ))}
+            <Link to="/stream-guide" className="link mt-2 text-[15px]">Compare all streams →</Link>
+          </div>
+          <div className="flex flex-col gap-3 rounded-3xl border border-line p-6">
+            <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-ink-3">How to read this</span>
+            <p className="text-[15px] leading-relaxed text-ink-2">Fit bands compare you with yourself, not with other students. They’re a guide for discussion — never a guarantee.</p>
+            <Link to="/how-it-works" className="link text-[15px]">How the test works →</Link>
+            <button
+              type="button"
+              aria-expanded={feedbackOpen}
+              onClick={() => setFeedbackOpen((v) => !v)}
+              className="mt-auto min-h-[44px] self-start rounded-xl border border-line-strong px-4 text-[15px] font-semibold hover:bg-mist print:hidden"
+            >
+              This doesn’t feel right?
+            </button>
           </div>
         </div>
+        {feedbackOpen && (
+          <div className="animate-pop flex flex-wrap items-center gap-5 rounded-3xl bg-mist p-6 print:hidden">
+            <Dhruv pose="think" size={80} decorative />
+            <div className="flex flex-1 flex-col gap-3">
+              <p className="text-[17px] font-bold">That’s useful to know — tests can miss things.</p>
+              <p className="text-[15px] text-ink-2">Talk it through with Dhruv, or retake the test when you feel ready. Your current report stays saved.</p>
+              <div className="flex flex-wrap gap-2.5">
+                <Button size="sm" to={`/mentor?q=${encodeURIComponent('My report doesn’t feel right to me. Can we talk about it?')}`}>Talk to Dhruv</Button>
+                <Button size="sm" variant="secondary" to="/start"><RotateCcw className="h-4 w-4" aria-hidden="true" />Retake the test</Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
-      </div>
+      {/* Strengths */}
+      <section aria-labelledby="strengths-title" className="flex flex-col gap-6">
+        <div className="flex max-w-2xl flex-col gap-2">
+          <h2 id="strengths-title" className="font-display text-[28px] font-bold tracking-tight sm:text-[34px]">{t.strengths}</h2>
+          <p className="text-[17px] leading-relaxed text-ink-2">Your three biggest strengths, in plain words. Everyone has a different mix — there’s no good or bad result.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {top3.map(([dim], i) => (
+            <div key={dim} className="flex flex-col gap-3 rounded-3xl bg-royal-50 p-6">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white font-display text-xl font-extrabold text-royal-600">{i + 1}</span>
+              <span className="text-xl font-bold leading-snug">{plainDimension(dim)}</span>
+              <span className="leading-relaxed text-ink-2">{DIMENSION_DETAIL[dim]?.body}</span>
+              {DIMENSION_DETAIL[dim] && <span className="text-sm font-semibold text-royal-600">Useful for: {DIMENSION_DETAIL[dim].useful}</span>}
+            </div>
+          ))}
+        </div>
+        {growing && (
+          <div className="flex flex-wrap items-center gap-5 rounded-3xl bg-saffron-50 px-6 py-5">
+            <Dhruv pose="thumbsup" size={72} decorative />
+            <div className="flex flex-1 flex-col gap-1">
+              <span className="text-lg font-bold">Still growing: {plainDimension(growing[0]).toLowerCase()}</span>
+              <span className="leading-relaxed text-saffron-900">Very normal at your age. Small, regular practice makes a real difference — Dhruv can suggest how.</span>
+            </div>
+          </div>
+        )}
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+          className="min-h-[48px] self-start rounded-xl border border-line-strong bg-white px-5 font-semibold hover:bg-mist print:hidden"
+        >
+          {showAll ? 'Hide the full breakdown' : `See all ${dims.length} areas`}
+        </button>
+        {(showAll) && (
+          <div className="card grid gap-x-10 gap-y-4 p-6 md:grid-cols-2">
+            {dims.map(([dim, score]) => {
+              const band = strengthBand(score);
+              return (
+                <div key={dim} className="grid grid-cols-[minmax(0,1fr)_96px] items-center gap-x-4 gap-y-1.5 text-[15px]">
+                  <span className="text-ink-2">{plainDimension(dim)}</span>
+                  <span className={cn('text-right text-sm font-bold', band.tone === 'saffron' ? 'text-saffron-700' : 'text-royal-600')}>{band.label}</span>
+                  <span className="col-span-2 block h-2 overflow-hidden rounded-full bg-[#EDF0F5]">
+                    <span className={cn('block h-full rounded-full', score >= 70 ? 'bg-royal-500' : score >= 50 ? 'bg-royal-300' : 'bg-saffron-500')} style={{ width: `${score}%` }} />
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Careers */}
+      <section aria-labelledby="careers-title" className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 id="careers-title" className="font-display text-[28px] font-bold tracking-tight sm:text-[34px]">{t.careers}</h2>
+          <span className="text-sm text-ink-3">{recs.length} matches</span>
+        </div>
+        <div className="flex flex-col gap-3.5">
+          {visible.map((r) => (
+            <article key={r.careerId} className="card flex flex-wrap items-center gap-5 p-6">
+              <div className="flex min-w-0 flex-1 basis-[380px] flex-col gap-2">
+                <FitBadge score={r.matchScore} showScore />
+                <h3 className="text-xl font-bold">{r.title} <span className="text-sm font-semibold text-ink-3">· {r.stream}</span></h3>
+                <p className="leading-relaxed text-ink-2"><strong className="text-ink">Why:</strong> {r.whyItMatches}</p>
+                {r.areasToDevelop && <p className="text-sm text-ink-3"><strong className="text-ink-2">To work on:</strong> {r.areasToDevelop}</p>}
+              </div>
+              <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+                <span className="text-[13px] text-ink-3">Typical salary</span>
+                <span className="text-lg font-bold">{formatLPA(r.salaryMinINR, r.salaryMaxINR)}</span>
+                {r.futureDemand && <span className="text-[13px] text-ink-3">Demand: {demandLabel(r.futureDemand)}</span>}
+                <Link to={`/careers/${r.slug}`} className="link print:hidden">View career →</Link>
+              </div>
+            </article>
+          ))}
+          {locked.length > 0 && (
+            <div className="relative overflow-hidden rounded-3xl print:hidden">
+              <div aria-hidden="true" className="pointer-events-none flex select-none flex-col gap-3.5 blur-[6px]">
+                {locked.slice(0, 3).map((r) => (
+                  <div key={r.careerId} className="card flex justify-between p-7"><span className="text-xl font-bold">{r.title}</span><Badge tone={fitBand(r.matchScore).tone}>{fitBand(r.matchScore).label}</Badge></div>
+                ))}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="flex max-w-xl flex-wrap items-center gap-5 rounded-3xl border-2 border-royal-500 bg-white p-6 shadow-lift">
+                  <Dhruv pose="read" size={88} decorative />
+                  <div className="flex flex-1 basis-[240px] flex-col gap-2">
+                    <span className="text-lg font-bold">{locked.length} more careers fit you</span>
+                    <span className="text-[15px] leading-relaxed text-ink-2">Unlock every match, the full breakdown and a PDF for your parents.</span>
+                    <div className="mt-1 flex flex-wrap items-center gap-3">
+                      <Button size="sm" onClick={() => openCheckout('DISCOVERY')}>Unlock for ₹299</Button>
+                      <Link to="/pricing" className="link text-[15px]">or Premium ₹999/yr</Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <p className="text-[13px] text-ink-3">Salary ranges are annual, entry to experienced, from each career’s cited source. See the career page for the source and the date it was checked.</p>
+      </section>
+
+      {/* Next steps */}
+      <section aria-labelledby="next-title" className="flex flex-col gap-5 rounded-4xl bg-mist p-6 sm:p-10 print:hidden">
+        <h2 id="next-title" className="font-display text-[28px] font-bold tracking-tight">{t.next}</h2>
+        {nextSteps.length > 0 && (
+          <ol className="grid gap-3 md:grid-cols-3">
+            {nextSteps.slice(0, 3).map((step, i) => (
+              <li key={step} className="flex flex-col gap-2 rounded-2xl bg-white p-5">
+                <span className="text-[13px] font-bold text-saffron-700">Step {i + 1}</span>
+                <span className="leading-relaxed">{step}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="flex flex-wrap gap-3">
+          <Button to="/plan" size="lg">Create my plan</Button>
+          <Button to={`/mentor?q=${encodeURIComponent('Explain my report simply')}`} size="lg" variant="secondary" className="font-semibold">Ask Dhruv about my report</Button>
+        </div>
+      </section>
     </div>
   );
 };
