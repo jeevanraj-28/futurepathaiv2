@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { cn, fitBand, type FitTone } from '../lib/utils';
 import { Dhruv, type DhruvPose } from './brand';
+import { bandKey, useT } from '../lib/i18n';
 
 /* ---------- Button ---------- */
 
@@ -81,10 +82,11 @@ export const Badge: React.FC<{
 /** Leads with the band ("Strong fit"); the raw score is optional secondary detail. */
 export const FitBadge: React.FC<{ score: number; showScore?: boolean; className?: string }> = ({ score, showScore, className }) => {
   const band = fitBand(score);
+  const { t } = useT();
   return (
     <span className={cn('inline-flex flex-wrap items-center gap-2', className)}>
-      <Badge tone={band.tone}>{band.label}</Badge>
-      {showScore && <span className="text-[13px] text-ink-3">score {Math.round(score)}/100</span>}
+      <Badge tone={band.tone}>{t(bandKey(band.label))}</Badge>
+      {showScore && <span className="text-[13px] text-ink-3">{t('score', { n: Math.round(score) })}</span>}
     </span>
   );
 };

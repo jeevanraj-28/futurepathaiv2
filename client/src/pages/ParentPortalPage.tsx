@@ -8,11 +8,14 @@ import { Character } from '../components/Character';
 import { Alert, Badge, Button, Field, FitBadge, PageHeader, ProgressBar, Skeleton, StateMessage } from '../components/ui';
 import { roadmapProgress } from '../lib/roadmap';
 import { classLabel, formatINR, plainDimension } from '../lib/utils';
+import { useT } from '../lib/i18n';
+import { LanguageToggle } from '../components/LanguageToggle';
 
 const STREAMS = ['Engineering', 'Medical', 'Design', 'Law', 'Commerce', 'Humanities'];
 
 export const ParentPortalPage: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useT();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [childIndex, setChildIndex] = useState(0);
@@ -98,10 +101,11 @@ export const ParentPortalPage: React.FC = () => {
     <div className="flex flex-col gap-6">
       <PageHeader
         leading={<Character who="aarav" mood="wave" size={64} />}
-        title={`${childFirst}’s progress`}
+        title={t('parent_progress', { name: childFirst })}
         subtitle={`${classLabel(child.currentClass)} · ${child.board || 'Board not set'} · ${child.studentEmail}`}
         actions={
           <>
+            <LanguageToggle />
             {children.length > 1 && (
               <>
                 <label htmlFor="child-select" className="sr-only">Choose child</label>
@@ -111,9 +115,9 @@ export const ParentPortalPage: React.FC = () => {
               </>
             )}
             {child.latestAssessment && (
-              <Button variant="whatsapp" size="sm" href={`https://wa.me/?text=${encodeURIComponent(share)}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />Share on WhatsApp</Button>
+              <Button variant="whatsapp" size="sm" href={`https://wa.me/?text=${encodeURIComponent(share)}`}><MessageCircle className="h-4 w-4" aria-hidden="true" />{t('share_whatsapp')}</Button>
             )}
-            <Button variant="secondary" size="sm" onClick={() => setShowLink((v) => !v)}><UserPlus className="h-4 w-4" aria-hidden="true" />Add a child</Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowLink((v) => !v)}><UserPlus className="h-4 w-4" aria-hidden="true" />{t('add_child')}</Button>
           </>
         }
       />
@@ -123,15 +127,15 @@ export const ParentPortalPage: React.FC = () => {
 
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <section className="flex flex-col gap-5 rounded-4xl border border-line bg-white p-6 sm:p-8">
-          <span className="eyebrow">In plain words</span>
+          <span className="eyebrow">{t('parent_plain')}</span>
           {child.latestAssessment ? (
             <>
               <h2 className="font-display text-[26px] font-bold leading-tight">
-                {childFirst}’s best-fit stream is {readiness[0]?.[0] || '—'}.
+                {t('parent_best_stream', { name: childFirst, stream: readiness[0]?.[0] || '—' })}
               </h2>
               {strengths.length > 0 && (
                 <p className="leading-relaxed text-ink-2">
-                  Strongest areas: {strengths.slice(0, 3).map((s) => plainDimension(s).toLowerCase()).join(', ')}.
+                  {t('parent_strongest')}: {strengths.slice(0, 3).map((s) => plainDimension(s).toLowerCase()).join(', ')}.
                 </p>
               )}
               <div className="flex flex-col gap-2">
@@ -149,25 +153,25 @@ export const ParentPortalPage: React.FC = () => {
         </section>
 
         <section className="card flex flex-col gap-4 p-6">
-          <h2 className="text-lg font-bold">Good questions to ask {childFirst}</h2>
+          <h2 className="text-lg font-bold">{t('parent_questions', { name: childFirst })}</h2>
           <ul className="flex list-disc flex-col gap-2.5 pl-5 leading-relaxed text-ink-2">
-            <li>Which subject do you lose track of time in?</li>
-            <li>{child.topCareers?.[0] ? `Does the day-to-day work of ${child.topCareers[0].title.split(' & ')[0]} sound fun to you?` : 'What kind of work sounds fun to you?'}</li>
-            <li>How do you feel about two years of entrance exam preparation?</li>
+            <li>{t('parent_q1')}</li>
+            <li>{child.topCareers?.[0] ? t('parent_q2_career', { career: child.topCareers[0].title.split(' & ')[0] }) : t('parent_q2')}</li>
+            <li>{t('parent_q3')}</li>
           </ul>
         </section>
       </div>
 
       <section aria-label="Status" className="grid gap-3 sm:grid-cols-3">
-        <div className="card flex flex-col gap-1 p-5"><span className="text-sm text-ink-3">Discovery test</span><span className="text-xl font-bold">{child.latestAssessment ? <span className="text-leaf-700">Completed</span> : 'Not yet'}</span></div>
+        <div className="card flex flex-col gap-1 p-5"><span className="text-sm text-ink-3">{t('parent_test')}</span><span className="text-xl font-bold">{child.latestAssessment ? <span className="text-leaf-700">{t('completed')}</span> : t('not_yet')}</span></div>
         <div className="card flex flex-col gap-2 p-5">
-          <span className="text-sm text-ink-3">Plan</span>
-          <span className="text-xl font-bold">{child.activeRoadmap ? `${plan.done} of ${plan.total} tasks` : 'Not started'}</span>
+          <span className="text-sm text-ink-3">{t('parent_plan')}</span>
+          <span className="text-xl font-bold">{child.activeRoadmap ? t('tasks_done', { done: plan.done, total: plan.total }) : t('not_started')}</span>
           {child.activeRoadmap && <ProgressBar value={plan.done} max={plan.total || 1} tone="saffron" label="Plan progress" />}
         </div>
         <div className="card flex flex-col gap-2 p-5">
-          <span className="text-sm text-ink-3">Profile</span>
-          <span className="text-xl font-bold">{child.completionScore}% complete</span>
+          <span className="text-sm text-ink-3">{t('parent_profile')}</span>
+          <span className="text-xl font-bold">{t('profile_complete', { n: child.completionScore })}</span>
           <ProgressBar value={child.completionScore} label="Profile completion" />
         </div>
       </section>
@@ -175,8 +179,8 @@ export const ParentPortalPage: React.FC = () => {
       <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
         <section aria-labelledby="cost-title" className="card flex flex-col gap-5 p-6 sm:p-8">
           <div className="flex flex-col gap-1">
-            <h2 id="cost-title" className="text-xl font-bold">Higher-education cost planner</h2>
-            <p className="text-[15px] text-ink-3">Estimates for the full degree. Change the options to compare.</p>
+            <h2 id="cost-title" className="text-xl font-bold">{t('parent_cost')}</h2>
+            <p className="text-[15px] text-ink-3">{t('parent_cost_sub')}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Field" htmlFor="cost-stream">
@@ -195,7 +199,7 @@ export const ParentPortalPage: React.FC = () => {
                 {[[`Tuition (${estimate.degreeDurationYears} years)`, estimate.totalTuitionINR], ['Hostel and living', estimate.totalLivingINR], ['Books and equipment', estimate.totalIncidentalsINR]].map(([k, v]) => (
                   <div key={k as string} className="flex justify-between gap-4 px-5 py-3.5"><dt className="text-ink-2">{k}</dt><dd className="font-semibold">{formatINR(v as number)}</dd></div>
                 ))}
-                <div className="flex justify-between gap-4 bg-mist px-5 py-4"><dt className="font-bold">Total estimate</dt><dd className="font-display text-2xl font-bold">{formatINR(estimate.totalEstimatedCostINR)}</dd></div>
+                <div className="flex justify-between gap-4 bg-mist px-5 py-4"><dt className="font-bold">{t('parent_total')}</dt><dd className="font-display text-2xl font-bold">{formatINR(estimate.totalEstimatedCostINR)}</dd></div>
               </dl>
               <p className="rounded-2xl bg-leaf-50 px-4 py-3 text-[15px] text-leaf-900">Saving about <strong>{formatINR(estimate.suggestedMonthlySavingsINR)} a month</strong> from now would cover it. <Link to="/scholarships" className="underline">See scholarships</Link></p>
               <p className="text-[13px] text-ink-3">{estimate.disclaimer}</p>
@@ -207,13 +211,13 @@ export const ParentPortalPage: React.FC = () => {
           <section className="flex flex-col gap-4 rounded-3xl bg-ink p-6 text-white">
             <div className="flex items-center gap-3">
               <Character who="ananya" size={52} />
-              <h2 className="text-lg font-bold text-white">Talk to a counsellor</h2>
+              <h2 className="text-lg font-bold text-white">{t('parent_counsellor')}</h2>
             </div>
             <p className="text-[15px] leading-relaxed text-night-text">Verified counsellors for a one-on-one family session about streams, exams and colleges.</p>
             <Button to="/counselors" variant="white" size="sm" className="self-start">See available counsellors</Button>
           </section>
           <section className="card flex flex-col gap-2.5 p-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold"><ShieldCheck className="h-5 w-5 text-leaf-600" aria-hidden="true" />Access and privacy</h2>
+            <h2 className="flex items-center gap-2 text-lg font-bold"><ShieldCheck className="h-5 w-5 text-leaf-600" aria-hidden="true" />{t('parent_privacy')}</h2>
             <p className="text-[15px] leading-relaxed text-ink-2">
               Link status: <Badge tone={pending ? 'saffron' : 'leaf'}>{pending ? 'Waiting for approval' : 'Approved'}</Badge>
             </p>

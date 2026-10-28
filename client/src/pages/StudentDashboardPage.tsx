@@ -10,14 +10,17 @@ import { TaskList } from '../components/Milestone';
 import { currentMilestoneIndex, roadmapProgress, type Roadmap } from '../lib/roadmap';
 import { classLabel, formatLPA } from '../lib/utils';
 import { answeredCount, loadProgress } from '../lib/testProgress';
+import { useT, type MessageKey } from '../lib/i18n';
+import { LanguageToggle } from '../components/LanguageToggle';
 
-const greeting = () => {
+const greetingKey = (): MessageKey => {
   const h = new Date().getHours();
-  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return h < 12 ? 'greet_morning' : h < 17 ? 'greet_afternoon' : 'greet_evening';
 };
 
 export const StudentDashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useT();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +67,7 @@ export const StudentDashboardPage: React.FC = () => {
   if (!data) {
     return (
       <div className="card">
-        <StateMessage pose="think" title="We couldn’t load your home" body={error || 'Please check your connection and try again.'} action={<Button onClick={() => { setLoading(true); load(); }}>Try again</Button>} />
+        <StateMessage pose="think" title="We couldn’t load your home" body={error || 'Please check your connection and try again.'} action={<Button onClick={() => { setLoading(true); load(); }}>{t('try_again')}</Button>} />
       </div>
     );
   }
@@ -72,16 +75,19 @@ export const StudentDashboardPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={`${greeting()}, ${firstName}`}
+        title={`${t(greetingKey())}, ${firstName}`}
         subtitle={
-          roadmap ? `You’re ${progress.pct}% through your ${roadmap.careerTitle} plan.`
-            : data.assessmentCompleted ? 'Your report is ready. Next: turn it into a plan.'
-              : 'Let’s start with the discovery test.'
+          roadmap ? t('dash_sub_plan', { pct: progress.pct, career: roadmap.careerTitle })
+            : data.assessmentCompleted ? t('dash_sub_report')
+              : t('dash_sub_start')
         }
         actions={
+          <>
+          <LanguageToggle />
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-ink-2 ring-1 ring-line">
             <GraduationCap className="h-4 w-4 text-royal-500" aria-hidden="true" />{classLabel(data.currentClass)} · {data.board || 'Board not set'}
           </span>
+          </>
         }
       />
 
@@ -92,33 +98,33 @@ export const StudentDashboardPage: React.FC = () => {
         <section className="flex flex-wrap items-center gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
           <Dhruv pose="backpack" size={130} decorative />
           <div className="flex flex-1 basis-[300px] flex-col gap-3">
-            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">Your first step</span>
-            <h2 className="font-display text-[28px] font-bold leading-tight text-white">{localAnswers > 0 ? `You’ve answered ${localAnswers} of 40 — keep going` : 'Take the 25-minute discovery test'}</h2>
-            <p className="text-night-text">Your report shows the stream and careers that fit you, with the reasons for each.</p>
+            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">{t('dash_first_step')}</span>
+            <h2 className="font-display text-[28px] font-bold leading-tight text-white">{localAnswers > 0 ? t('dash_answered', { n: localAnswers }) : t('dash_take_test')}</h2>
+            <p className="text-night-text">{t('dash_test_body')}</p>
             {localAnswers > 0 && <ProgressBar value={localAnswers} max={40} tone="saffron" className="max-w-sm bg-night-3" label="Test progress" />}
           </div>
-          <Button to={localAnswers > 0 ? '/assessment' : '/start'} variant="white" size="lg">{localAnswers > 0 ? 'Resume test' : 'Start the test'}</Button>
+          <Button to={localAnswers > 0 ? '/assessment' : '/start'} variant="white" size="lg">{localAnswers > 0 ? t('dash_resume') : t('dash_start_test')}</Button>
         </section>
       ) : roadmap ? (
         <section className="flex flex-wrap items-center justify-between gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
           <div className="flex flex-1 basis-[320px] flex-col gap-3">
-            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">Continue your plan</span>
+            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">{t('dash_continue')}</span>
             <h2 className="font-display text-[26px] font-bold leading-tight text-white">{milestone?.title} · {roadmap.careerTitle}</h2>
             <div className="flex max-w-md flex-col gap-2">
-              <div className="flex justify-between text-sm text-night-text"><span>{progress.done} of {progress.total} tasks done</span><span>{milestone?.period}</span></div>
+              <div className="flex justify-between text-sm text-night-text"><span>{t('tasks_done', { done: progress.done, total: progress.total })}</span><span>{milestone?.period}</span></div>
               <ProgressBar value={progress.done} max={progress.total || 1} tone="saffron" className="bg-night-3" label="Plan progress" />
             </div>
           </div>
-          <Button to="/plan" variant="white">Open my plan</Button>
+          <Button to="/plan" variant="white">{t('dash_open_plan')}</Button>
         </section>
       ) : (
         <section className="flex flex-wrap items-center gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
           <Dhruv pose="read" size={120} decorative />
           <div className="flex flex-1 basis-[300px] flex-col gap-2">
-            <h2 className="font-display text-[26px] font-bold text-white">Turn your report into a plan</h2>
-            <p className="text-night-text">Pick one of your matches and get a 30-day, 90-day and 1-year plan.</p>
+            <h2 className="font-display text-[26px] font-bold text-white">{t('dash_build_plan')}</h2>
+            <p className="text-night-text">{t('dash_build_body')}</p>
           </div>
-          <Button to="/plan" variant="white" size="lg">Create my plan</Button>
+          <Button to="/plan" variant="white" size="lg">{t('report_create_plan')}</Button>
         </section>
       )}
 
@@ -127,8 +133,8 @@ export const StudentDashboardPage: React.FC = () => {
           {roadmap && milestone && (
             <section aria-labelledby="week-title" className="card flex flex-col gap-4 p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 id="week-title" className="text-xl font-bold">Right now: {milestone.period.replace(/\s*\(.*\)/, '')}</h2>
-                <span className="text-sm text-ink-3">Tap a task to mark it done</span>
+                <h2 id="week-title" className="text-xl font-bold">{t('dash_right_now')}: {milestone.period.replace(/\s*\(.*\)/, '')}</h2>
+                <span className="text-sm text-ink-3">{t('dash_tap')}</span>
               </div>
               <TaskList tasks={milestone.tasks} onToggle={toggle} busyIndex={busy} />
             </section>
@@ -136,8 +142,8 @@ export const StudentDashboardPage: React.FC = () => {
 
           <section aria-labelledby="matches-title" className="card flex flex-col gap-4 p-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 id="matches-title" className="text-xl font-bold">Your top matches</h2>
-              {data.assessmentCompleted && <Link to="/assessment/results" className="link text-[15px]">Full report →</Link>}
+              <h2 id="matches-title" className="text-xl font-bold">{t('dash_matches')}</h2>
+              {data.assessmentCompleted && <Link to="/assessment/results" className="link text-[15px]">{t('full_report')}</Link>}
             </div>
             {data.topRecommendations?.length ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -150,7 +156,7 @@ export const StudentDashboardPage: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <StateMessage compact pose="relax" title="No matches yet" body="Your career matches appear here after the discovery test." action={<Button size="sm" to="/start">Start the test</Button>} />
+              <StateMessage compact pose="relax" title={t('dash_no_matches')} body={t('dash_no_matches_body')} action={<Button size="sm" to="/start">{t('dash_start_test')}</Button>} />
             )}
           </section>
         </div>
@@ -160,7 +166,7 @@ export const StudentDashboardPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <Dhruv pose="think" size={56} decorative />
               <div className="flex flex-col">
-                <h2 id="dhruv-title" className="text-xl font-bold">Ask Dhruv</h2>
+                <h2 id="dhruv-title" className="text-xl font-bold">{t('dash_ask')}</h2>
                 <span className="text-sm text-ink-3">AI mentor · cites official sources</span>
               </div>
             </div>
@@ -177,18 +183,18 @@ export const StudentDashboardPage: React.FC = () => {
             <Link to="/careers" className="card flex flex-col gap-1 p-5 hover:border-royal-300">
               <Bookmark className="h-5 w-5 text-royal-500" aria-hidden="true" />
               <span className="mt-1 font-display text-2xl font-bold">{data.savedCareersCount}</span>
-              <span className="text-sm text-ink-3">Saved careers</span>
+              <span className="text-sm text-ink-3">{t('dash_saved_careers')}</span>
             </Link>
             <Link to="/colleges" className="card flex flex-col gap-1 p-5 hover:border-royal-300">
               <GraduationCap className="h-5 w-5 text-royal-500" aria-hidden="true" />
               <span className="mt-1 font-display text-2xl font-bold">{data.savedCollegesCount}</span>
-              <span className="text-sm text-ink-3">Saved colleges</span>
+              <span className="text-sm text-ink-3">{t('dash_saved_colleges')}</span>
             </Link>
           </section>
 
           {data.completionScore < 80 && (
             <section className="card flex flex-col gap-3 p-6">
-              <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Profile strength</h2><span className="font-bold text-royal-600">{data.completionScore}%</span></div>
+              <div className="flex items-center justify-between"><h2 className="text-lg font-bold">{t('dash_profile')}</h2><span className="font-bold text-royal-600">{data.completionScore}%</span></div>
               <ProgressBar value={data.completionScore} label="Profile strength" />
               <p className="text-sm leading-relaxed text-ink-2">Add your favourite subjects and budget to sharpen your matches.</p>
               <Button to="/onboarding" variant="secondary" size="sm" className="self-start">Complete profile</Button>
