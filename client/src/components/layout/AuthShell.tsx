@@ -13,7 +13,7 @@ export const AuthShell: React.FC<{
     <aside className="relative hidden w-[44%] max-w-[560px] flex-col justify-between overflow-hidden bg-royal-500 p-12 text-white lg:flex">
       <Link to="/" aria-label="FuturePath AI home"><Logo tone="light" height={30} /></Link>
       <div className="flex flex-col gap-5">
-        <Dhruv pose={pose} size={200} bob decorative />
+        <Dhruv eager pose={pose} size={200} bob decorative />
         <h2 className="font-display text-4xl font-bold leading-tight tracking-tight text-white">{panelTitle}</h2>
         <p className="max-w-sm text-lg leading-relaxed text-royal-100">{panelBody}</p>
       </div>

@@ -46,7 +46,7 @@ export const QuickStartPage: React.FC = () => {
 
       <main id="main" className="mx-auto grid w-full max-w-[1120px] flex-1 items-center gap-12 px-6 py-12 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
-          <Dhruv pose="backpack" size={170} bob decorative />
+          <Dhruv eager pose="backpack" size={170} bob decorative />
           <h1 className="h-display text-4xl sm:text-5xl">Let’s find what fits you. No sign-up needed.</h1>
           <p className="max-w-md text-lg leading-relaxed text-ink-2">
             Answer two quick questions and start straight away. Your answers save on this device, so you can stop and come back any time.

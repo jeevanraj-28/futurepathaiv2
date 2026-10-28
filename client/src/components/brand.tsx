@@ -12,6 +12,34 @@ const POSE_ALT: Record<DhruvPose, string> = {
   cheer: 'cheering', thanks: 'saying thank you',
 };
 
+/** WebP with a PNG fallback; `src` is the path without its extension. */
+const Picture: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  style?: React.CSSProperties;
+  width?: number;
+  height?: number;
+  eager?: boolean;
+  decorative?: boolean;
+}> = ({ src, alt, className, style, width, height, eager, decorative }) => (
+  <picture className="contents">
+    <source srcSet={`${src}.webp`} type="image/webp" />
+    <img
+      src={`${src}.png`}
+      alt={alt}
+      width={width}
+      height={height}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      aria-hidden={decorative || undefined}
+      className={className}
+      style={style}
+      draggable={false}
+    />
+  </picture>
+);
+
 /** Dhruv, the FuturePath polar-bear guide. */
 export const Dhruv: React.FC<{
   pose?: DhruvPose;
@@ -19,16 +47,18 @@ export const Dhruv: React.FC<{
   className?: string;
   bob?: boolean;
   decorative?: boolean;
-}> = ({ pose = 'wave', size = 120, className, bob, decorative }) => (
-  <img
-    src={`/mascot/${pose}.png`}
+  /** Pass true for art that is visible on first paint, so it isn't lazy-loaded. */
+  eager?: boolean;
+}> = ({ pose = 'wave', size = 120, className, bob, decorative, eager }) => (
+  <Picture
+    src={`/mascot/${pose}`}
+    alt={decorative ? '' : `Dhruv the polar bear ${POSE_ALT[pose]}`}
     width={size}
     height={size}
-    alt={decorative ? '' : `Dhruv the polar bear ${POSE_ALT[pose]}`}
-    aria-hidden={decorative || undefined}
+    eager={eager}
     className={cn('shrink-0 select-none object-contain', bob && 'animate-bob', className)}
     style={{ width: size, height: size }}
-    draggable={false}
+    decorative={decorative}
   />
 );
 
@@ -40,17 +70,19 @@ export const Logo: React.FC<{
   className?: string;
 }> = ({ variant = 'wordmark', tone = 'dark', height = 34, className }) => {
   const icon = (
-    <img
-      src="/brand/icon.png"
+    <Picture
+      src="/brand/icon"
       alt={variant === 'icon' ? 'FuturePath AI' : ''}
+      eager
       className="block shrink-0"
       style={{ width: variant === 'icon' ? height : height * 1.25, height: variant === 'icon' ? height : height * 1.25 }}
     />
   );
   const word = (
-    <img
-      src={tone === 'light' ? '/brand/logo-light.png' : '/brand/logo.png'}
+    <Picture
+      src={tone === 'light' ? '/brand/logo-light' : '/brand/logo'}
       alt="FuturePath AI"
+      eager
       className="block w-auto"
       style={{ height }}
     />

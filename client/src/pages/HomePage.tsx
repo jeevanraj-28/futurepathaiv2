@@ -131,7 +131,7 @@ export const HomePage: React.FC = () => {
 
           {/* Product preview */}
           <div className="relative sm:pt-16 lg:pt-0">
-            <Dhruv pose="wave" size={120} className="absolute -top-2 right-4 z-10 hidden sm:block lg:-top-[104px]" bob decorative />
+            <Dhruv eager pose="wave" size={120} className="absolute -top-2 right-4 z-10 hidden sm:block lg:-top-[104px]" bob decorative />
             <div className="flex flex-col gap-5 rounded-3xl border border-line bg-white p-7 shadow-lift">
               <div className="flex items-start justify-between gap-3">
                 <div>

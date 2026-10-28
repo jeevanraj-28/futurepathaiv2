@@ -99,7 +99,7 @@ export const SaveResultsPage: React.FC = () => {
       <main id="main" className="mx-auto grid max-w-[1120px] items-start gap-10 px-5 py-10 sm:px-6 lg:grid-cols-2 lg:py-14">
         <section className="flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <Dhruv pose="celebrate" size={140} decorative />
+            <Dhruv eager pose="celebrate" size={140} decorative />
             <div className="flex flex-col gap-1.5">
               <p className="text-sm font-bold text-leaf-600">Test complete · {answeredCount(progress)} of 40</p>
               <h1 className="font-display text-4xl font-bold leading-tight tracking-tight">Your results are ready!</h1>
