@@ -1,7 +1,8 @@
 import React from 'react';
 
-export type CharacterId = 'aarav' | 'meera' | 'kabir' | 'sunita' | 'rajesh' | 'fatima' | 'ananya' | 'harjeet';
-export type CharacterMood = 'happy' | 'talk' | 'wow' | 'think' | 'wave';
+import type { CharacterId, CharacterMood } from '../lib/characters';
+
+export type { CharacterId, CharacterMood } from '../lib/characters';
 
 const PEOPLE: Record<CharacterId, { label: string; skin: string; shade: string; cloth: string; bg: string; brow: string }> = {
   aarav: { label: 'Student', skin: '#C98763', shade: '#A86A4A', cloth: '#F5F7FA', bg: '#2347D6', brow: '#262626' },
@@ -12,17 +13,6 @@ const PEOPLE: Record<CharacterId, { label: string; skin: string; shade: string; 
   fatima: { label: 'Teacher', skin: '#E2B08C', shade: '#C38F6B', cloth: '#2347D6', bg: '#FFF1E6', brow: '#3A2A20' },
   ananya: { label: 'Counsellor', skin: '#8D5A3F', shade: '#6E4430', cloth: '#0E1A2B', bg: '#EAF0FF', brow: '#3B2A22' },
   harjeet: { label: 'Principal', skin: '#D69C77', shade: '#B67C59', cloth: '#F5F7FA', bg: '#E6F5EF', brow: '#6B6B6B' },
-};
-
-/** Map a signed-in role to the cast member who represents it. */
-export const characterForRole = (role?: string): CharacterId => {
-  switch (role) {
-    case 'PARENT': return 'sunita';
-    case 'SCHOOL_ADMIN': return 'harjeet';
-    case 'COUNSELOR': return 'ananya';
-    case 'PLATFORM_ADMIN': return 'kabir';
-    default: return 'aarav';
-  }
 };
 
 /**

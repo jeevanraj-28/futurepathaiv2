@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bookmark, BookmarkCheck, ExternalLink, MapPin, Search } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import type { College } from '../types';
 import { Alert, Badge, Button, Skeleton, StateMessage } from '../components/ui';
 import { PageFrame } from '../components/layout/AppLayout';

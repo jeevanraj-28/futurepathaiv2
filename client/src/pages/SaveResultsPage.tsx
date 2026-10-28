@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { ApiService } from '../services/api';
 import type { AssessmentQuestion } from '../types';
 import { Logo, Dhruv } from '../components/brand';
@@ -49,13 +49,11 @@ export const SaveResultsPage: React.FC = () => {
     }
   };
 
-  // Signed-in students who land here (for example after logging in) can save straight away.
-  useEffect(() => {
-    if (user?.role === 'STUDENT' && answeredCount(progress) > 0) {
-      setSaving(true);
-      persist().catch((err) => setError(err.message || 'Could not save your results.')).finally(() => setSaving(false));
-    }
-  }, [user]);
+  const saveSignedIn = () => {
+    setSaving(true);
+    setError(null);
+    persist().catch((err) => setError(err.message || 'Could not save your results.')).finally(() => setSaving(false));
+  };
 
   if (answeredCount(progress) === 0) return <Navigate to="/start" replace />;
 
@@ -132,9 +130,10 @@ export const SaveResultsPage: React.FC = () => {
             </>
           ) : user ? (
             <>
-              <h2 id="save-title" className="font-display text-2xl font-bold">Saving to your account…</h2>
+              <h2 id="save-title" className="font-display text-2xl font-bold">Save to your account</h2>
+              <p className="text-ink-2">You’re logged in as {user.name}. Your answers will be added to this account.</p>
               {error && <Alert>{error}</Alert>}
-              <Button onClick={() => { setSaving(true); persist().catch((e) => setError(e.message)).finally(() => setSaving(false)); }} loading={saving}>Try again</Button>
+              <Button size="lg" onClick={saveSignedIn} loading={saving}>Save and see my report</Button>
             </>
           ) : (
             <form onSubmit={submit} noValidate className="flex flex-col gap-5">

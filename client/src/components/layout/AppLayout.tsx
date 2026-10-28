@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, Settings, Wallet, X } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/auth';
 import { Dhruv, Logo } from '../brand';
 import { Button, Spinner } from '../ui';
-import { Character, characterForRole } from '../Character';
+import { Character } from '../Character';
+import { characterForRole } from '../../lib/characters';
 import { cn } from '../../lib/utils';
 import { homePathForRole, isActive, navForRole } from './nav';
+import { InAppContext, useInApp } from './inApp';
 
 const ROLE_LABEL: Record<string, string> = {
   STUDENT: 'Student', PARENT: 'Parent', SCHOOL_ADMIN: 'School admin', COUNSELOR: 'Counsellor', PLATFORM_ADMIN: 'Platform admin',
@@ -122,11 +124,6 @@ const MentorLauncher: React.FC = () => {
     </div>
   );
 };
-
-const InAppContext = React.createContext(false);
-
-/** True when a page renders inside the signed-in app shell (so it can drop its own page padding). */
-export const useInApp = () => React.useContext(InAppContext);
 
 /** Page container for screens shared by the public site and the app: adds site padding only outside the app. */
 export const PageFrame: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {

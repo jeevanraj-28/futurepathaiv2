@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bookmark, GraduationCap, MessageCircle } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { Dhruv } from '../components/brand';
 import { Character } from '../components/Character';
 import { Alert, Button, FitBadge, PageHeader, ProgressBar, Skeleton, StateMessage } from '../components/ui';
-import { TaskList, currentMilestoneIndex, roadmapProgress, type Roadmap } from '../components/Milestone';
+import { TaskList } from '../components/Milestone';
+import { currentMilestoneIndex, roadmapProgress, type Roadmap } from '../lib/roadmap';
 import { classLabel, formatLPA } from '../lib/utils';
 import { answeredCount, loadProgress } from '../lib/testProgress';
 
@@ -23,15 +24,13 @@ export const StudentDashboardPage: React.FC = () => {
   const [busy, setBusy] = useState<number | null>(null);
   const localAnswers = useMemo(() => answeredCount(loadProgress()), []);
 
-  const load = () => {
-    setError(null);
+  const load = () =>
     ApiService.getStudentDashboard()
-      .then((res) => res.success && setData(res.dashboard))
+      .then((res) => { if (res.success) { setData(res.dashboard); setError(null); } })
       .catch((err) => setError(err.message || 'Could not load your home.'))
       .finally(() => setLoading(false));
-  };
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const roadmap: Roadmap | null = data?.activeRoadmap || null;
   const mi = currentMilestoneIndex(roadmap);

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { useCheckout } from '../context/CheckoutContext';
-import { PLAN_INFO } from '../components/CheckoutModal';
+import { useAuth } from '../context/auth';
+import { useCheckout } from '../context/checkout';
+import { PLAN_INFO } from '../lib/plans';
 import { Alert, Badge, Button, Modal, PageHeader, Skeleton, StateMessage } from '../components/ui';
 import { formatINR } from '../lib/utils';
 

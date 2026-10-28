@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Minus } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { Dhruv } from '../components/brand';
 import { Badge, Button, FitBadge, Skeleton, StateMessage } from '../components/ui';
 import { PageFrame } from '../components/layout/AppLayout';

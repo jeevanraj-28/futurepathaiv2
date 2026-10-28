@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/auth';
 import { Logo } from '../brand';
 import { Button } from '../ui';
-import { Character, characterForRole } from '../Character';
+import { Character } from '../Character';
+import { characterForRole } from '../../lib/characters';
 import { cn } from '../../lib/utils';
 import { homePathForRole } from './nav';
+
+const YEAR = new Date().getFullYear();
 
 const LINKS = [
   { to: '/careers', label: 'Explore careers' },
@@ -19,10 +22,11 @@ const LINKS = [
 
 export const PublicHeader: React.FC = () => {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
-  const location = useLocation();
-
-  useEffect(() => setOpen(false), [location.pathname]);
+  const { pathname } = useLocation();
+  // remember which page the menu was opened on, so navigating closes it without an effect
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === pathname;
+  const setOpen = (toggle: (v: boolean) => boolean) => setOpenOn(toggle(open) ? pathname : null);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
@@ -96,7 +100,7 @@ export const PublicFooter: React.FC = () => (
         <FooterCol title="Company" links={[['/about', 'About'], ['/how-it-works', 'How it works'], ['/contact', 'Contact'], ['/privacy-policy', 'Privacy'], ['/terms', 'Terms'], ['/refund-policy', 'Refunds']]} />
       </div>
       <div className="flex flex-wrap justify-between gap-3 border-t border-line pt-6 text-sm text-ink-3">
-        <span>© {new Date().getFullYear()} FuturePath AI. Recommendations are possibilities to explore, not admission or job guarantees.</span>
+        <span>© {YEAR} FuturePath AI. Recommendations are possibilities to explore, not admission or job guarantees.</span>
         <span>DPDP Act 2023 compliant · We never sell student data</span>
       </div>
     </div>

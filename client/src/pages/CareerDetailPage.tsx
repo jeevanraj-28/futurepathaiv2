@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Bookmark, BookmarkCheck, Check, ExternalLink, Plus } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { Dhruv } from '../components/brand';
 import { Alert, Badge, Button, Skeleton, StateMessage } from '../components/ui';
-import { PageFrame, useInApp } from '../components/layout/AppLayout';
+import { PageFrame } from '../components/layout/AppLayout';
+import { useInApp } from '../components/layout/inApp';
 import { cn, demandLabel, fitBand, formatLPA } from '../lib/utils';
 
 const SECTIONS = [
@@ -15,8 +16,13 @@ const SECTIONS = [
   ['colleges', 'Colleges'],
 ] as const;
 
+/** Remounts for each career so loading state starts fresh without resetting it inside an effect. */
 export const CareerDetailPage: React.FC = () => {
-  const { slug } = useParams();
+  const { slug = '' } = useParams();
+  return <CareerDetail key={slug} slug={slug} />;
+};
+
+const CareerDetail: React.FC<{ slug: string }> = ({ slug }) => {
   const { user } = useAuth();
   const inApp = useInApp();
   const [career, setCareer] = useState<any>(null);
@@ -28,9 +34,7 @@ export const CareerDetailPage: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setMissing(false);
-    ApiService.getCareerBySlug(slug || '')
+    ApiService.getCareerBySlug(slug)
       .then((res) => (res.success ? setCareer(res.career) : setMissing(true)))
       .catch(() => setMissing(true))
       .finally(() => setLoading(false));

@@ -2,17 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, CreditCard, Landmark, Lock, Smartphone, X } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { Alert, Button, Modal } from './ui';
 import { Dhruv } from './brand';
 import { cn, formatINR } from '../lib/utils';
-
-export const PLAN_INFO: Record<string, { name: string; price: number; period: string }> = {
-  DISCOVERY: { name: 'Career Report', price: 299, period: 'one-time' },
-  PREMIUM_STUDENT: { name: 'Premium', price: 999, period: 'per year' },
-  PREMIUM_PLUS: { name: 'Family', price: 2499, period: 'per year' },
-  SCHOOL_PILOT: { name: 'School Pilot', price: 19999, period: 'per year' },
-};
+import { PLAN_INFO } from '../lib/plans';
 
 const METHODS = [
   { id: 'UPI' as const, label: 'UPI', hint: 'GPay, PhonePe, Paytm', Icon: Smartphone },

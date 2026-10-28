@@ -4,7 +4,8 @@ import { Download, FileText, Plus } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { Dhruv } from '../components/brand';
 import { Alert, Badge, Button, Field, PageHeader, ProgressBar, Skeleton } from '../components/ui';
-import { TaskList, currentMilestoneIndex, roadmapProgress, type Roadmap } from '../components/Milestone';
+import { TaskList } from '../components/Milestone';
+import { currentMilestoneIndex, roadmapProgress, type Roadmap } from '../lib/roadmap';
 import { cn } from '../lib/utils';
 
 const THIS_YEAR = new Date().getFullYear();

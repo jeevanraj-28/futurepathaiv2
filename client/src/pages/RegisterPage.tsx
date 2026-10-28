@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { AuthShell } from '../components/layout/AuthShell';
 import { Alert, Button, ChoiceTile, Field } from '../components/ui';
 import { Character } from '../components/Character';

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Check } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { ApiService } from '../services/api';
 import { Logo, Dhruv } from '../components/brand';
 import { Button, ChoiceTile } from '../components/ui';

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { ApiService } from '../services/api';
 import { AuthShell } from '../components/layout/AuthShell';
 import { Alert, Button, Field } from '../components/ui';

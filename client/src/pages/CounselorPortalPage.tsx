@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Languages, Star, Video, X } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { Dhruv } from '../components/brand';
 import { Character } from '../components/Character';
 import { Alert, Badge, Button, Field, Modal, PageHeader, Skeleton, StateMessage } from '../components/ui';

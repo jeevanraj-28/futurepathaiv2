@@ -1,49 +1,34 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, SubscriptionStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { User, SubscriptionStatus } from '../types';
 import { ApiService } from '../services/api';
-
-interface AuthContextType {
-  user: User | null;
-  subscription: SubscriptionStatus | null;
-  loading: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
-  register: (data: any) => Promise<void>;
-  demoLogin: (role: string) => Promise<void>;
-  logout: () => void;
-  refreshUser: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from './auth';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // only wait for the session check when there is a stored token to check
+  const [loading, setLoading] = useState<boolean>(() => !!localStorage.getItem('futurepath_token'));
 
-  const refreshUser = async () => {
-    try {
-      const data = await ApiService.getMe();
-      if (data.success && data.user) {
-        setUser(data.user);
-        setSubscription(data.subscription || { planCode: 'FREE', planName: 'Free Explorer', isActive: true });
-      }
-    } catch (err) {
-      // Session invalid or token expired
-      ApiService.clearToken();
-      setUser(null);
-      setSubscription(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const checkSession = () =>
+    ApiService.getMe()
+      .then((data) => {
+        if (data.success && data.user) {
+          setUser(data.user);
+          setSubscription(data.subscription || { planCode: 'FREE', planName: 'Free Explorer', isActive: true });
+        }
+      })
+      .catch(() => {
+        // Session invalid or token expired
+        ApiService.clearToken();
+        setUser(null);
+        setSubscription(null);
+      })
+      .finally(() => setLoading(false));
+
+  const refreshUser = async () => { await checkSession(); };
 
   useEffect(() => {
-    const token = localStorage.getItem('futurepath_token');
-    if (token) {
-      refreshUser();
-    } else {
-      setLoading(false);
-    }
+    if (localStorage.getItem('futurepath_token')) checkSession();
   }, []);
 
   const login = async (credentials: { email: string; password: string }) => {
@@ -100,12 +85,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

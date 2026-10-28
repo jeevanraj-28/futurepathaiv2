@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { ApiService } from '../services/api';
 import { Dhruv } from '../components/brand';
-import { Character, characterForRole } from '../components/Character';
+import { Character } from '../components/Character';
+import { characterForRole } from '../lib/characters';
 import { Alert, Badge, Button } from '../components/ui';
 import { cn } from '../lib/utils';
 
@@ -93,15 +94,19 @@ export const AIMentorChatPage: React.FC = () => {
     }
   };
 
+  // keep the latest send() for the effect below without re-running it on every render
+  const sendRef = useRef(send);
+  useEffect(() => { sendRef.current = send; });
+
   // questions passed from other screens ("Ask Dhruv about my report") are sent once history has loaded
   useEffect(() => {
     const q = params.get('q');
     if (ready && q && !sentInitial.current) {
       sentInitial.current = true;
       setParams({}, { replace: true });
-      send(q);
+      sendRef.current(q);
     }
-  }, [ready]);
+  }, [ready, params, setParams]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_300px]">

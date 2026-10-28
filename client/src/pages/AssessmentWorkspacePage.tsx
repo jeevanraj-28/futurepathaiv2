@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, WifiOff } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth';
 import { ApiService } from '../services/api';
 import type { AssessmentQuestion } from '../types';
 import { Logo, Dhruv } from '../components/brand';
@@ -55,10 +55,10 @@ export const AssessmentWorkspacePage: React.FC = () => {
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' && !navigator.onLine);
 
   const fetchQuestions = useCallback(() => {
-    setLoadError(false);
     ApiService.getQuestions()
       .then((res) => {
         if (res.success && res.questions?.length) {
+          setLoadError(false);
           setQuestions(res.questions);
           try { localStorage.setItem(QUESTIONS_CACHE, JSON.stringify(res.questions)); } catch { /* ignore */ }
         }
@@ -182,7 +182,7 @@ export const AssessmentWorkspacePage: React.FC = () => {
           pose={offline ? 'sleep' : 'think'}
           title={offline ? 'You’re offline' : 'We couldn’t load the test'}
           body={offline ? 'Connect once to download the questions. After that, the test works offline.' : 'Please check your connection and try again. Nothing you answered is lost.'}
-          action={<Button onClick={() => { setLoading(true); fetchQuestions(); }}>Try again</Button>}
+          action={<Button onClick={() => { setLoading(true); setLoadError(false); fetchQuestions(); }}>Try again</Button>}
         />
       </div>
     );
