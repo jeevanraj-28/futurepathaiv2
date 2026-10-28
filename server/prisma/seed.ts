@@ -16,7 +16,7 @@ async function main() {
       billingType: 'ONE_TIME',
       featuresJson: JSON.stringify([
         'Complete student profile & academic tracker',
-        'Basic 10-question assessment trial',
+        'Full 40-question discovery test',
         'Top 3 career recommendations preview',
         'Access to public college & exam directory',
         'Class 10 Stream selection overview'

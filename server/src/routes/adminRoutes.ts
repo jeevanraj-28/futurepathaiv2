@@ -7,7 +7,7 @@ const router = Router();
 /**
  * Platform Administrator SaaS Revenue & Metric Intelligence
  */
-router.get('/metrics', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/metrics', authenticateToken, requireRoles(['PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const totalUsers = await prisma.user.count();
     const studentUsers = await prisma.user.count({ where: { role: 'STUDENT' } });
@@ -75,7 +75,7 @@ router.get('/metrics', authenticateToken, async (req: AuthRequest, res: Response
 /**
  * List registered platform users
  */
-router.get('/users', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/users', authenticateToken, requireRoles(['PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
@@ -111,7 +111,7 @@ router.get('/users', authenticateToken, async (req: AuthRequest, res: Response):
 /**
  * Update plan price dynamically
  */
-router.post('/plans/:code/price', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/plans/:code/price', authenticateToken, requireRoles(['PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { code } = req.params;
     const { priceINR } = req.body;
@@ -149,7 +149,7 @@ router.post('/plans/:code/price', authenticateToken, async (req: AuthRequest, re
 /**
  * Get system audit logs
  */
-router.get('/audit-logs', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/audit-logs', authenticateToken, requireRoles(['PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const logs = await prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },

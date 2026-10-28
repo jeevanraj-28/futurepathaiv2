@@ -158,6 +158,62 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * Look up a school invitation so the student sees who invited them before setting a password
+ */
+router.get('/invite/:token', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const invite = await prisma.studentInvite.findUnique({ where: { token: req.params.token } });
+    if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+      res.status(404).json({ success: false, message: 'This invitation has expired or was already used' });
+      return;
+    }
+    const user = await prisma.user.findUnique({ where: { id: invite.userId }, select: { name: true, email: true } });
+    const school = invite.schoolId ? await prisma.school.findUnique({ where: { id: invite.schoolId }, select: { name: true } }) : null;
+    res.json({ success: true, invite: { name: user?.name, email: user?.email, schoolName: school?.name || null } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Could not check the invitation', error: err.message });
+  }
+});
+
+/**
+ * Accept a school invitation: set a password and sign in
+ */
+router.post('/accept-invite', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token: inviteToken, password } = req.body;
+    if (!inviteToken || typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({ success: false, message: 'Choose a password with at least 8 characters' });
+      return;
+    }
+    const invite = await prisma.studentInvite.findUnique({ where: { token: inviteToken } });
+    if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+      res.status(404).json({ success: false, message: 'This invitation has expired or was already used' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [user] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: invite.userId },
+        data: { passwordHash },
+        include: { studentProfile: true }
+      }),
+      prisma.studentInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } })
+    ]);
+
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, studentProfileId: user.studentProfile?.id },
+      subscription: { planCode: 'FREE', planName: 'Free Explorer', isActive: true }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Could not accept the invitation', error: err.message });
+  }
+});
+
+/**
  * Demo Login: 1-click switch between Student, Parent, School, Counselor, and Admin roles
  */
 router.post('/demo-login', async (req: Request, res: Response): Promise<void> => {

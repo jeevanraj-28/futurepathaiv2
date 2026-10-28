@@ -13,6 +13,7 @@ router.get('/overview', authenticateToken, async (req: AuthRequest, res: Respons
       where: { userId: req.user?.id },
       include: {
         studentLinks: {
+          where: { status: { not: 'REVOKED' } },
           include: {
             student: {
               include: {
@@ -45,17 +46,20 @@ router.get('/overview', authenticateToken, async (req: AuthRequest, res: Respons
 
     const linkedStudents = parent.studentLinks.map(link => {
       const st = link.student;
-      const latestAttempt = st.assessmentAttempts[0] || null;
+      // until the student approves, a parent sees only who they asked to link with
+      const approved = link.status === 'ACTIVE';
+      const latestAttempt = approved ? st.assessmentAttempts[0] || null : null;
 
       return {
         linkId: link.id,
+        studentId: st.id,
         relationship: link.relationship,
         status: link.status,
         studentName: st.user.name,
         studentEmail: st.user.email,
         currentClass: st.currentClass,
         board: st.board,
-        completionScore: st.completionScore,
+        completionScore: approved ? st.completionScore : 0,
         latestAssessment: latestAttempt ? {
           attemptId: latestAttempt.id,
           completedAt: latestAttempt.completedAt,
@@ -63,14 +67,14 @@ router.get('/overview', authenticateToken, async (req: AuthRequest, res: Respons
           topStrengths: latestAttempt.strengthProfile ? JSON.parse(latestAttempt.strengthProfile) : [],
           readinessProfile: latestAttempt.readinessProfile ? JSON.parse(latestAttempt.readinessProfile) : {}
         } : null,
-        topCareers: st.recommendations.map(r => ({
+        topCareers: (approved ? st.recommendations : []).map(r => ({
           title: r.career.title,
           category: r.career.category,
           matchScore: r.matchScore,
           whyItMatches: r.whyItMatches,
           salaryRange: `₹${(r.career.salaryMinINR / 100000).toFixed(1)}L - ₹${(r.career.salaryMaxINR / 100000).toFixed(1)}L`
         })),
-        activeRoadmap: st.roadmaps[0] ? {
+        activeRoadmap: approved && st.roadmaps[0] ? {
           careerTitle: st.roadmaps[0].careerTitle,
           milestones: JSON.parse(st.roadmaps[0].milestonesJson)
         } : null
@@ -114,20 +118,32 @@ router.post('/link-student', authenticateToken, async (req: AuthRequest, res: Re
       return;
     }
 
-    // Upsert link
+    const existing = await prisma.parentStudentLink.findFirst({
+      where: { parentId: parent.id, studentId: targetUser.studentProfile.id, status: { not: 'REVOKED' } }
+    });
+    if (existing) {
+      res.json({
+        success: true,
+        message: existing.status === 'ACTIVE' ? `You're already linked with ${targetUser.name}.` : `Your request is waiting for ${targetUser.name} to approve.`,
+        linkId: existing.id
+      });
+      return;
+    }
+
+    // The student must approve before the parent can see anything (DPDP Act consent).
     const link = await prisma.parentStudentLink.create({
       data: {
         parentId: parent.id,
         studentId: targetUser.studentProfile.id,
         relationship,
-        status: 'ACTIVE',
-        consentGiven: true
+        status: 'PENDING',
+        consentGiven: false
       }
     });
 
     res.json({
       success: true,
-      message: `Successfully linked with ${targetUser.name}`,
+      message: `Request sent. You'll see ${targetUser.name}'s report once they approve it.`,
       linkId: link.id
     });
   } catch (err: any) {
