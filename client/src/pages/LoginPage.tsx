@@ -45,7 +45,7 @@ export const LoginPage: React.FC = () => {
       await login({ email: email.trim(), password });
       await goHome();
     } catch (err: any) {
-      setError(err.message === 'Invalid credentials' ? 'That email and password don’t match. Please try again.' : err.message || 'Could not log in.');
+      setError(/invalid/i.test(err.message || '') ? 'That email and password don’t match. Please try again.' : err.message || 'Could not log in.');
     } finally {
       setLoading(false);
     }

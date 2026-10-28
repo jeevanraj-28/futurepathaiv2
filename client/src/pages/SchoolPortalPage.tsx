@@ -5,6 +5,14 @@ import { Character } from '../components/Character';
 import { Alert, Badge, Button, PageHeader, ProgressBar, Segmented, Skeleton, StateMessage } from '../components/ui';
 import { plainDimension } from '../lib/utils';
 
+type ImportResult = {
+  success: boolean;
+  message: string;
+  created: Array<{ name: string; email: string; inviteToken: string }>;
+  skipped: Array<{ email: string; reason: string }>;
+  errors: Array<{ row: number; email?: string; reason: string }>;
+};
+
 /** Minimal CSV reader for "name,email,rollNumber,class" rows exported from school spreadsheets. */
 const parseCsv = (text: string) =>
   text
@@ -22,6 +30,7 @@ export const SchoolPortalPage: React.FC = () => {
   const [status, setStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
   const [message, setMessage] = useState<{ tone: 'leaf' | 'danger' | 'royal'; text: string } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = () =>
@@ -49,17 +58,30 @@ export const SchoolPortalPage: React.FC = () => {
     }
     setImporting(true);
     try {
-      const res = await ApiService.request<{ success: boolean; message: string }>('/school/bulk-import', {
+      const res = await ApiService.request<ImportResult>('/school/bulk-import', {
         method: 'POST',
         body: JSON.stringify({ studentsList: rows }),
       });
-      setMessage({ tone: 'leaf', text: res.message });
+      setResult(res);
+      setMessage(null);
       await load();
     } catch (err: any) {
       setMessage({ tone: 'danger', text: err.message || 'Import failed.' });
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  // one line per new student: name, email and personal link, ready to paste into a sheet or message
+  const copyInvites = async () => {
+    if (!result) return;
+    const text = result.created.map((c) => [c.name, c.email, `${window.location.origin}/invite/${c.inviteToken}`].join('\t')).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage({ tone: 'royal', text: `Copied ${result.created.length} invite links.` });
+    } catch {
+      setMessage({ tone: 'royal', text: 'Your browser blocked copying. Select the links from the import file instead.' });
     }
   };
 
@@ -76,6 +98,12 @@ export const SchoolPortalPage: React.FC = () => {
   if (loading) return <div className="flex flex-col gap-6"><Skeleton className="h-12 w-80" /><div className="grid gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div><Skeleton className="h-96 rounded-3xl" /></div>;
   if (failed || !school) return <div className="card"><StateMessage pose="think" title="We couldn’t load your school" body="Please refresh. If it continues, contact support." /></div>;
 
+  const importProblems = result
+    ? [
+        ...result.skipped.map((x) => ({ key: `s-${x.email}`, label: x.email, reason: x.reason })),
+        ...result.errors.map((x) => ({ key: `e-${x.row}`, label: `Row ${x.row}${x.email ? ` · ${x.email}` : ''}`, reason: x.reason })),
+      ]
+    : [];
   const testRate = school.totalEnrolledStudents ? Math.round((school.completedAssessments / school.totalEnrolledStudents) * 100) : 0;
 
   return (
@@ -93,6 +121,33 @@ export const SchoolPortalPage: React.FC = () => {
       />
 
       {message && <Alert tone={message.tone}>{message.text}</Alert>}
+
+      {result && (
+        <section aria-labelledby="import-title" className="card flex flex-col gap-4 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="import-title" className="text-lg font-bold">Import results</h2>
+            <button type="button" onClick={() => setResult(null)} className="link text-sm">Dismiss</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="leaf">{result.created.length} added</Badge>
+            <Badge tone="saffron">{result.skipped.length} skipped</Badge>
+            <Badge tone="danger">{result.errors.length} errors</Badge>
+          </div>
+          {result.created.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-leaf-50 p-4">
+              <p className="text-[15px] text-leaf-900">Each new student needs their invite link to set a password. Links expire in 14 days.</p>
+              <Button size="sm" variant="secondary" onClick={copyInvites}><Copy className="h-4 w-4" aria-hidden="true" />Copy invite links</Button>
+            </div>
+          )}
+          {importProblems.length > 0 && (
+            <ul className="divide-y divide-line rounded-2xl border border-line text-[15px]">
+              {importProblems.map((x) => (
+                <li key={x.key} className="flex flex-wrap justify-between gap-2 px-4 py-2.5"><span className="font-semibold">{x.label}</span><span className="text-ink-3">{x.reason}</span></li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section aria-label="Overview" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card flex flex-col gap-2 p-5">
@@ -152,8 +207,11 @@ export const SchoolPortalPage: React.FC = () => {
         <section aria-labelledby="streams-title" className="card flex flex-col gap-4 self-start p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="streams-title" className="text-lg font-bold">Stream interest</h2>
-            <Badge tone="neutral">Preview data</Badge>
+            <span className="text-sm text-ink-3">{school.completedAssessments} tested</span>
           </div>
+          {(school.streamDistribution || []).length === 0 && (
+            <p className="text-[15px] text-ink-3">Appears once students finish the discovery test.</p>
+          )}
           {(school.streamDistribution || []).map((d: any) => (
             <div key={d.stream} className="flex flex-col gap-1.5">
               <div className="flex justify-between text-[15px]"><span>{d.stream}</span><span className="font-bold">{d.percentage}%</span></div>

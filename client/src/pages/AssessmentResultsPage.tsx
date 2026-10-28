@@ -11,6 +11,7 @@ import { bandKey, useT } from '../lib/i18n';
 import { DIMENSION_DETAIL, cn, demandLabel, fitBand, formatLPA, plainDimension, strengthBand } from '../lib/utils';
 
 const FREE_VISIBLE = 3;
+const FEEDBACK_REASONS = ['I don’t enjoy maths that much', 'I’m more creative than this shows', 'I want to help people directly', 'I rushed some answers', 'The stream doesn’t fit me'];
 
 export const AssessmentResultsPage: React.FC = () => {
   const { user, subscription } = useAuth();
@@ -20,6 +21,21 @@ export const AssessmentResultsPage: React.FC = () => {
   const [missing, setMissing] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [reasons, setReasons] = useState<string[]>([]);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+
+  const sendFeedback = async () => {
+    setSendingFeedback(true);
+    try {
+      await ApiService.sendAssessmentFeedback(reasons);
+      setFeedbackSent(true);
+    } catch {
+      // keep the choices so the student can try again
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
   const { t } = useT();
   const isFree = !subscription || subscription.planCode === 'FREE';
 
@@ -135,8 +151,30 @@ export const AssessmentResultsPage: React.FC = () => {
           <div className="animate-pop flex flex-wrap items-center gap-5 rounded-3xl bg-mist p-6 print:hidden">
             <Dhruv pose="think" size={80} decorative />
             <div className="flex flex-1 flex-col gap-3">
-              <p className="text-[17px] font-bold">That’s useful to know — tests can miss things.</p>
-              <p className="text-[15px] text-ink-2">Talk it through with Dhruv, or retake the test when you feel ready. Your current report stays saved.</p>
+              <p className="text-[17px] font-bold">That’s useful to know — tests can miss things. What feels off?</p>
+              {feedbackSent ? (
+                <p className="text-[15px] font-semibold text-leaf-700">Thanks — we’ve noted it. Talk it through with Dhruv, or retake the test when you feel ready.</p>
+              ) : (
+                <>
+                  <div role="group" aria-label="What feels off" className="flex flex-wrap gap-2">
+                    {FEEDBACK_REASONS.map((r) => {
+                      const on = reasons.includes(r);
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => setReasons((x) => (on ? x.filter((y) => y !== r) : [...x, r]))}
+                          className={on ? 'min-h-[44px] rounded-full bg-royal-500 px-4 text-sm font-semibold text-white' : 'min-h-[44px] rounded-full border border-line-strong bg-white px-4 text-sm font-semibold hover:border-royal-300'}
+                        >
+                          {r}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button size="sm" className="self-start" disabled={!reasons.length} loading={sendingFeedback} onClick={sendFeedback}>Send</Button>
+                </>
+              )}
               <div className="flex flex-wrap gap-2.5">
                 <Button size="sm" to={`/mentor?q=${encodeURIComponent('My report doesn’t feel right to me. Can we talk about it?')}`}>Talk to Dhruv</Button>
                 <Button size="sm" variant="secondary" to="/start"><RotateCcw className="h-4 w-4" aria-hidden="true" />Retake the test</Button>

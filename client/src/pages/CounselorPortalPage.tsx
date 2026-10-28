@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Languages, Star, Video, X } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { useAuth } from '../context/auth';
@@ -31,9 +31,13 @@ const upcomingSlots = (slots: string[]) => {
   return out;
 };
 
-const BookingDialog: React.FC<{ counselor: any; onClose: () => void; onBooked: () => void }> = ({ counselor, onClose, onBooked }) => {
+type Child = { studentId: string; studentName: string };
+
+const BookingDialog: React.FC<{ counselor: any; linkedChildren: Child[]; onClose: () => void; onBooked: () => void }> = ({ counselor, linkedChildren, onClose, onBooked }) => {
   const options = useMemo(() => upcomingSlots(counselor.availableSlots || []), [counselor]);
   const [pick, setPick] = useState(0);
+  // parents book on behalf of a linked child; students book for themselves
+  const [childId, setChildId] = useState(linkedChildren[0]?.studentId || '');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +49,7 @@ const BookingDialog: React.FC<{ counselor: any; onClose: () => void; onBooked: (
     setSaving(true);
     setError(null);
     try {
-      const res = await ApiService.bookCounselor({ counselorId: counselor.id, scheduledDate: slot.date, slotTime: slot.time, studentNotes: notes });
+      const res = await ApiService.bookCounselor({ counselorId: counselor.id, scheduledDate: slot.date, slotTime: slot.time, studentNotes: notes, studentId: childId || undefined });
       if (res.success) { setDone(res.booking); onBooked(); }
     } catch (err: any) {
       setError(err.message || 'We couldn’t book that slot. Please try another.');
@@ -73,6 +77,14 @@ const BookingDialog: React.FC<{ counselor: any; onClose: () => void; onBooked: (
             <Character who="ananya" size={52} animate={false} />
             <div className="flex flex-col"><span className="font-bold">{counselor.name}</span><span className="text-sm text-ink-3">{formatINR(counselor.hourlyRateINR)} · 60 minutes · video call</span></div>
           </div>
+          {linkedChildren.length > 1 && (
+            <Field label="Booking for" htmlFor="booking-child">
+              <select id="booking-child" value={childId} onChange={(e) => setChildId(e.target.value)} className="field-input">
+                {linkedChildren.map((c) => <option key={c.studentId} value={c.studentId}>{c.studentName}</option>)}
+              </select>
+            </Field>
+          )}
+          {linkedChildren.length === 1 && <p className="text-[15px] text-ink-2">Booking for <strong>{linkedChildren[0].studentName}</strong></p>}
           {options.length === 0 ? (
             <Alert tone="saffron">No open slots in the next two weeks. Please check back soon.</Alert>
           ) : (
@@ -104,16 +116,23 @@ export const CounselorPortalPage: React.FC<{ mode: 'marketplace' | 'counselor' }
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<any>(null);
+  const [children, setChildren] = useState<Child[]>([]);
+  const isParent = user?.role === 'PARENT';
 
-  const load = () =>
+  const load = useCallback(() =>
     Promise.all([
       ApiService.getCounselors().catch(() => ({ counselors: [] })),
       ApiService.request<{ success: boolean; bookings: any[] }>('/counselors/my-bookings').catch(() => ({ bookings: [] })),
+      isParent ? ApiService.getParentOverview().catch(() => ({ linkedStudents: [] })) : Promise.resolve({ linkedStudents: [] }),
     ])
-      .then(([c, b]: any) => { setCounselors(c.counselors || []); setBookings(b.bookings || []); })
-      .finally(() => setLoading(false));
+      .then(([c, b, p]: any) => {
+        setCounselors(c.counselors || []);
+        setBookings(b.bookings || []);
+        setChildren((p.linkedStudents || []).filter((s: any) => s.status === 'ACTIVE').map((s: any) => ({ studentId: s.studentId, studentName: s.studentName })));
+      })
+      .finally(() => setLoading(false)), [isParent]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return <div className="flex flex-col gap-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-64 rounded-3xl" /></div>;
 
@@ -143,20 +162,20 @@ export const CounselorPortalPage: React.FC<{ mode: 'marketplace' | 'counselor' }
     );
   }
 
-  const canBook = user?.role === 'STUDENT';
+  const canBook = user?.role === 'STUDENT' || (isParent && children.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Talk to a counsellor" subtitle="Verified experts for stream choice, exams and college applications — one-on-one, by video." />
 
-      {!canBook && <Alert tone="royal">Sessions are booked from the student’s account so notes and reports stay together. Ask your child to book, or log in as the student.</Alert>}
+      {!canBook && <Alert tone="royal">{isParent ? 'Link to your child’s account first — once they approve, you can book sessions for them.' : 'Sessions are booked by students, or by parents for a linked child.'}</Alert>}
 
       {bookings.length > 0 && (
         <section aria-labelledby="mine-title" className="card flex flex-col gap-3 p-6">
           <h2 id="mine-title" className="text-lg font-bold">Your sessions</h2>
           {bookings.map((b) => (
             <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-mist px-4 py-3">
-              <span className="flex items-center gap-2 font-semibold"><CalendarDays className="h-4 w-4 text-royal-500" aria-hidden="true" />{b.scheduledDate} · {b.slotTime} · {b.counselor?.user?.name}</span>
+              <span className="flex items-center gap-2 font-semibold"><CalendarDays className="h-4 w-4 text-royal-500" aria-hidden="true" />{b.scheduledDate} · {b.slotTime} · {b.counselor?.user?.name}{isParent && b.student?.user?.name ? ` · for ${b.student.user.name}` : ''}</span>
               {b.meetingLink && <a href={b.meetingLink} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1.5"><Video className="h-4 w-4" aria-hidden="true" />Join</a>}
             </div>
           ))}
@@ -194,7 +213,7 @@ export const CounselorPortalPage: React.FC<{ mode: 'marketplace' | 'counselor' }
         </div>
       )}
 
-      {booking && <BookingDialog counselor={booking} onClose={() => setBooking(null)} onBooked={load} />}
+      {booking && <BookingDialog counselor={booking} linkedChildren={isParent ? children : []} onClose={() => setBooking(null)} onBooked={load} />}
     </div>
   );
 };

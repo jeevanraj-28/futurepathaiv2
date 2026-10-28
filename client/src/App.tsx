@@ -12,6 +12,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { QuickStartPage } from './pages/QuickStartPage';
 import { AssessmentWorkspacePage } from './pages/AssessmentWorkspacePage';
 import { SaveResultsPage } from './pages/SaveResultsPage';
+import { AcceptInvitePage } from './pages/AcceptInvitePage';
 
 // Larger, signed-in or less-visited screens load on demand to keep the first page fast on slow connections.
 const PricingPage = lazy(() => import('./pages/PricingPage').then((m) => ({ default: m.PricingPage })));
@@ -75,6 +76,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/start" element={<QuickStartPage />} />
       <Route path="/assessment" element={<AssessmentWorkspacePage />} />
       <Route path="/assessment/save" element={<SaveResultsPage />} />
+      <Route path="/invite/:token" element={<AcceptInvitePage />} />
 
       {/* Discovery: public for visitors, inside the app once signed in */}
       <Route element={<AdaptiveLayout publicLayout={<PublicLayout />} />}>

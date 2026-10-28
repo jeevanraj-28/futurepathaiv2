@@ -8,7 +8,8 @@ import { Character } from '../components/Character';
 import { Alert, Button, FitBadge, PageHeader, ProgressBar, Skeleton, StateMessage } from '../components/ui';
 import { TaskList } from '../components/Milestone';
 import { currentMilestoneIndex, roadmapProgress, type Roadmap } from '../lib/roadmap';
-import { classLabel, formatLPA } from '../lib/utils';
+import { classLabel, cn, formatLPA } from '../lib/utils';
+import { ParentLinks } from '../components/ParentLinks';
 import { answeredCount, loadProgress } from '../lib/testProgress';
 import { useT, type MessageKey } from '../lib/i18n';
 import { LanguageToggle } from '../components/LanguageToggle';
@@ -46,7 +47,7 @@ export const StudentDashboardPage: React.FC = () => {
     setBusy(taskIndex);
     try {
       const res = await ApiService.toggleRoadmapTask(roadmap.id, mi, taskIndex);
-      if (res.success) setData((d: any) => ({ ...d, activeRoadmap: { ...d.activeRoadmap, milestones: res.roadmap.milestones } }));
+      if (res.success) { setData((d: any) => ({ ...d, activeRoadmap: { ...d.activeRoadmap, milestones: res.roadmap.milestones } })); load(); }
     } catch {
       setError('That change didn’t save. Please try again.');
     } finally {
@@ -162,6 +163,33 @@ export const StudentDashboardPage: React.FC = () => {
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">
+          <ParentLinks pendingOnly onChange={load} />
+
+          {data.assessmentCompleted && (
+            <section aria-labelledby="streak-title" className="card flex items-center gap-4 p-5">
+              <Dhruv pose={data.weeklyStreak > 0 ? 'cheer' : 'run'} size={84} decorative />
+              <div className="flex flex-1 flex-col gap-2">
+                <h2 id="streak-title" className="font-display text-xl font-bold">
+                  {data.weeklyStreak > 0 ? t('streak_title', { n: data.weeklyStreak }) : t('streak_start')}
+                </h2>
+                <div role="img" aria-label={`${t('streak_weeks')}: ${(data.recentWeeks || []).filter(Boolean).length}/6`} className="flex gap-1.5">
+                  {(data.recentWeeks || []).map((active: boolean, i: number) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        'h-2.5 w-7 rounded-full',
+                        active ? 'bg-saffron-500' : i === 5 ? 'border-2 border-dashed border-saffron-500' : 'bg-line'
+                      )}
+                    />
+                  ))}
+                </div>
+                <p className="text-sm text-ink-3">
+                  {data.thisWeekDone > 0 ? t('streak_done', { n: data.thisWeekDone }) : data.weeklyStreak > 0 ? t('streak_keep') : t('streak_begin')}
+                </p>
+              </div>
+            </section>
+          )}
+
           <section aria-labelledby="dhruv-title" className="card flex flex-col gap-3.5 p-6">
             <div className="flex items-center gap-3">
               <Dhruv pose="think" size={56} decorative />

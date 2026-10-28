@@ -3,6 +3,7 @@ import { ApiService } from '../services/api';
 import { Alert, Button, ChoiceTile, Field, PageHeader, ProgressBar, Skeleton } from '../components/ui';
 import { cn, parseList } from '../lib/utils';
 import { BOARD_OPTIONS } from '../lib/testProgress';
+import { ParentLinks } from '../components/ParentLinks';
 
 const SUBJECTS = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'Economics', 'Accountancy', 'Business Studies', 'English', 'Hindi', 'History', 'Geography', 'Political Science', 'Psychology', 'Fine Arts', 'Physical Education'];
 const SKILLS = ['Coding', 'Maths puzzles', 'Creative writing', 'Public speaking', 'Drawing and design', 'Building things', 'Science experiments', 'Managing money', 'Debating', 'Music', 'Sports', 'Organising events'];
@@ -143,6 +144,8 @@ export const OnboardingWizardPage: React.FC = () => {
           <textarea id="pf-expect" rows={3} value={form.careerExpectations} onChange={(e) => set('careerExpectations', e.target.value)} className="field-input" placeholder="e.g. I want to build technology that helps farmers." />
         </Field>
       </section>
+
+      <ParentLinks />
 
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
       <div className="flex flex-wrap gap-3">
