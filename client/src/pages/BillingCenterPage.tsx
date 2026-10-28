@@ -74,7 +74,7 @@ export const BillingCenterPage: React.FC = () => {
         {loading ? <Skeleton className="h-40 rounded-2xl" /> : invoices.length === 0 ? (
           <StateMessage compact pose="relax" title="No payments yet" body="Receipts with GST details appear here after you buy a plan." />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-line">
+          <div role="region" aria-label="Payments and receipts" tabIndex={0} className="overflow-x-auto rounded-2xl border border-line">
             <table className="w-full min-w-[620px] border-collapse text-left text-[15px]">
               <thead className="bg-mist"><tr>{['Receipt', 'Plan', 'Amount (incl. GST)', 'Status', 'Date'].map((h) => <th key={h} scope="col" className="px-4 py-3 text-sm font-bold text-ink-2">{h}</th>)}</tr></thead>
               <tbody>

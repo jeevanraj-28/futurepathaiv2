@@ -114,7 +114,7 @@ export const SchoolPortalPage: React.FC = () => {
         subtitle={`${school.board || 'Board'} · ${school.city}, ${school.state} · ${school.subscriptionTier || 'Pilot'} plan`}
         actions={
           <>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" className="sr-only" id="csv-upload" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" aria-label="Student list CSV file" id="csv-upload" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
             <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} loading={importing}><Upload className="h-4 w-4" aria-hidden="true" />Import students (CSV)</Button>
           </>
         }
@@ -180,7 +180,7 @@ export const SchoolPortalPage: React.FC = () => {
           {filtered.length === 0 ? (
             <StateMessage compact pose="read" title="No students match" body={students.length ? 'Try a different search or filter.' : 'Import your class list to get started.'} />
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-line">
+            <div role="region" aria-label="Students" tabIndex={0} className="overflow-x-auto rounded-2xl border border-line">
               <table className="w-full min-w-[720px] border-collapse text-left text-[15px]">
                 <thead className="bg-mist">
                   <tr>

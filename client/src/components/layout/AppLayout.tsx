@@ -35,9 +35,9 @@ const AccountMenu: React.FC<{ compactOnTablet?: boolean }> = ({ compactOnTablet 
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Account menu"
         className="flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left hover:bg-mist"
       >
+        <span className="sr-only">Account menu: </span>
         <Character who={characterForRole(user.role)} size={40} />
         <span className={cn('flex min-w-0 flex-col', compactOnTablet && 'hidden lg:flex')}>
           <span className="truncate text-[15px] font-semibold">{user.name}</span>

@@ -100,7 +100,7 @@ export const StreamSelectionPage: React.FC = () => {
           {compared.length > 0 && (
             <section aria-labelledby="compare-title" className="flex flex-col gap-4">
               <h2 id="compare-title" className="font-display text-[28px] font-bold">Side by side</h2>
-              <div className="overflow-x-auto rounded-3xl border border-line bg-white">
+              <div role="region" aria-label="Stream comparison" tabIndex={0} className="overflow-x-auto rounded-3xl border border-line bg-white">
                 <table className="w-full min-w-[720px] border-collapse text-left text-[15px]">
                   <thead>
                     <tr className="bg-mist">

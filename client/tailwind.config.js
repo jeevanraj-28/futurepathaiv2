@@ -41,7 +41,7 @@ export default {
           50: '#FDECEC',
           600: '#A11D1D',
         },
-        whatsapp: '#128C4B',
+        whatsapp: '#0F7A3F',
         night: {
           DEFAULT: '#0E1A2B',
           2: '#18273D',

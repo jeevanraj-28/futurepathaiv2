@@ -10,7 +10,8 @@
     "seed": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma db push",
-    "test": "tsc && node --test \"dist/tests/*.test.js\""
+    "test": "tsc && node --test \"dist/tests/*.test.js\"",
+    "cleanup:test-users": "tsx scripts/cleanupTestUsers.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

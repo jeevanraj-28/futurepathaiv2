@@ -125,7 +125,7 @@ export const AdminDashboardPage: React.FC = () => {
             <input id="user-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search users" className="field-input py-2.5 pl-10" />
           </div>
         </div>
-        <div className="overflow-x-auto rounded-2xl border border-line">
+        <div role="region" aria-label="Recent users" tabIndex={0} className="overflow-x-auto rounded-2xl border border-line">
           <table className="w-full min-w-[720px] border-collapse text-left text-[15px]">
             <thead className="bg-mist"><tr>{['User', 'Role', 'Class', 'Plan', 'Profile', 'Joined'].map((h) => <th key={h} scope="col" className="px-4 py-3 text-sm font-bold text-ink-2">{h}</th>)}</tr></thead>
             <tbody>

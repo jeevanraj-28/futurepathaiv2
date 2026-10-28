@@ -19,7 +19,7 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   dark: 'bg-ink text-white hover:bg-night-2',
   ghost: 'text-royal-500 hover:bg-royal-50',
   white: 'bg-white text-ink hover:bg-royal-50',
-  whatsapp: 'bg-whatsapp text-white hover:bg-[#0f7a41]',
+  whatsapp: 'bg-whatsapp text-white hover:bg-[#0B6533]',
   danger: 'border border-danger-600/30 bg-white text-danger-600 hover:bg-danger-50',
 };
 
