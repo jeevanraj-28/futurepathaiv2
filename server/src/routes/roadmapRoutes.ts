@@ -138,15 +138,27 @@ router.patch('/:id/task', authenticateToken, async (req: AuthRequest, res: Respo
     const { id } = req.params;
     const { milestoneIndex, taskIndex } = req.body;
 
+    const student = await prisma.studentProfile.findUnique({ where: { userId: req.user?.id } });
     const roadmap = await prisma.careerRoadmap.findUnique({ where: { id } });
-    if (!roadmap) {
+    // only the student who owns the plan may change it
+    if (!roadmap || !student || roadmap.studentId !== student.id) {
       res.status(404).json({ success: false, message: 'Roadmap not found' });
       return;
     }
 
     const milestones = JSON.parse(roadmap.milestonesJson);
-    if (milestones[milestoneIndex]?.tasks[taskIndex]) {
-      milestones[milestoneIndex].tasks[taskIndex].completed = !milestones[milestoneIndex].tasks[taskIndex].completed;
+    const task = milestones[milestoneIndex]?.tasks[taskIndex];
+    if (!task) {
+      res.status(400).json({ success: false, message: 'Task not found in this roadmap' });
+      return;
+    }
+    task.completed = !task.completed;
+
+    // keep a dated record of completions for the weekly streak
+    if (task.completed) {
+      await prisma.taskCompletion.create({ data: { studentId: student.id, roadmapId: id, milestoneIndex, taskIndex } });
+    } else {
+      await prisma.taskCompletion.deleteMany({ where: { studentId: student.id, roadmapId: id, milestoneIndex, taskIndex } });
     }
 
     const updated = await prisma.careerRoadmap.update({
@@ -189,7 +201,14 @@ router.get('/:id/export', authenticateToken, async (req: AuthRequest, res: Respo
       }
     });
 
-    if (!roadmap) {
+    // the student, or a parent whose link the student approved
+    const isOwner = roadmap?.student.userId === req.user?.id;
+    const isLinkedParent = roadmap && !isOwner
+      ? await prisma.parentStudentLink.count({
+          where: { studentId: roadmap.studentId, status: 'ACTIVE', parent: { userId: req.user?.id } }
+        }) > 0
+      : false;
+    if (!roadmap || (!isOwner && !isLinkedParent)) {
       res.status(404).json({ success: false, message: 'Roadmap not found' });
       return;
     }

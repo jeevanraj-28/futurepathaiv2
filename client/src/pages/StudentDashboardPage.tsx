@@ -1,296 +1,246 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Bookmark, GraduationCap, MessageCircle } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  Compass,
-  Sparkles,
-  BookOpen,
-  GraduationCap,
-  TrendingUp,
-  CheckCircle2,
-  Calendar,
-  Bookmark,
-  ShieldCheck,
-  ArrowRight,
-  MessageSquare,
-  FileText,
-  User,
-  ListTodo
-} from 'lucide-react';
+import { useAuth } from '../context/auth';
+import { Dhruv } from '../components/brand';
+import { Character } from '../components/Character';
+import { Alert, Button, FitBadge, PageHeader, ProgressBar, Skeleton, StateMessage } from '../components/ui';
+import { TaskList } from '../components/Milestone';
+import { currentMilestoneIndex, roadmapProgress, type Roadmap } from '../lib/roadmap';
+import { classLabel, cn, formatLPA } from '../lib/utils';
+import { ParentLinks } from '../components/ParentLinks';
+import { answeredCount, loadProgress } from '../lib/testProgress';
+import { useT, type MessageKey } from '../lib/i18n';
+import { LanguageToggle } from '../components/LanguageToggle';
 
-export const StudentDashboardPage: React.FC<{ onOpenCheckout?: (planCode: string) => void }> = ({ onOpenCheckout }) => {
-  const { user, subscription } = useAuth();
-  const navigate = useNavigate();
+const greetingKey = (): MessageKey => {
+  const h = new Date().getHours();
+  return h < 12 ? 'greet_morning' : h < 17 ? 'greet_afternoon' : 'greet_evening';
+};
 
-  const [dashboard, setDashboard] = useState<any>(null);
+export const StudentDashboardPage: React.FC = () => {
+  const { user } = useAuth();
+  const { t } = useT();
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const localAnswers = useMemo(() => answeredCount(loadProgress()), []);
 
-  useEffect(() => {
-    ApiService.getStudentDashboard().then(res => {
-      if (res.success && res.dashboard) {
-        setDashboard(res.dashboard);
-      }
-    }).catch(err => {
-      console.error(err);
-    }).finally(() => {
-      setLoading(false);
-    });
-  }, []);
+  const load = () =>
+    ApiService.getStudentDashboard()
+      .then((res) => { if (res.success) { setData(res.dashboard); setError(null); } })
+      .catch((err) => setError(err.message || 'Could not load your home.'))
+      .finally(() => setLoading(false));
+
+  useEffect(() => { load(); }, []);
+
+  const roadmap: Roadmap | null = data?.activeRoadmap || null;
+  const mi = currentMilestoneIndex(roadmap);
+  const milestone = roadmap?.milestones[mi];
+  const progress = roadmapProgress(roadmap);
+  const firstName = (data?.studentName || user?.name || '').split(' ')[0];
+
+  const toggle = async (taskIndex: number) => {
+    if (!roadmap) return;
+    setBusy(taskIndex);
+    try {
+      const res = await ApiService.toggleRoadmapTask(roadmap.id, mi, taskIndex);
+      if (res.success) { setData((d: any) => ({ ...d, activeRoadmap: { ...d.activeRoadmap, milestones: res.roadmap.milestones } })); load(); }
+    } catch {
+      setError('That change didn’t save. Please try again.');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        <p className="text-sm">Loading your Student Intelligence Workspace...</p>
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-40 rounded-3xl" />
+        <div className="grid gap-6 lg:grid-cols-[2fr_1fr]"><Skeleton className="h-80 rounded-3xl" /><Skeleton className="h-80 rounded-3xl" /></div>
       </div>
     );
   }
 
-  const completionScore = dashboard?.completionScore || 40;
-  const isPremium = subscription?.planCode !== 'FREE';
+  if (!data) {
+    return (
+      <div className="card">
+        <StateMessage pose="think" title="We couldn’t load your home" body={error || 'Please check your connection and try again.'} action={<Button onClick={() => { setLoading(true); load(); }}>{t('try_again')}</Button>} />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
-        {/* Welcome Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Welcome back, {user?.name}
-              </h1>
-              <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-slate-800 text-cyan-400 border border-slate-700">
-                {dashboard?.currentClass === 'CLASS_10' ? 'Class 10 (Secondary)' : 'Class 12 (Senior)'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Board: {dashboard?.board || 'CBSE'} • Active Strategy Workspace
-            </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={`${t(greetingKey())}, ${firstName}`}
+        subtitle={
+          roadmap ? t('dash_sub_plan', { pct: progress.pct, career: roadmap.careerTitle })
+            : data.assessmentCompleted ? t('dash_sub_report')
+              : t('dash_sub_start')
+        }
+        actions={
+          <>
+          <LanguageToggle />
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-ink-2 ring-1 ring-line">
+            <GraduationCap className="h-4 w-4 text-royal-500" aria-hidden="true" />{classLabel(data.currentClass)} · {data.board || 'Board not set'}
+          </span>
+          </>
+        }
+      />
+
+      {error && <Alert>{error}</Alert>}
+
+      {/* Primary next step */}
+      {!data.assessmentCompleted ? (
+        <section className="flex flex-wrap items-center gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
+          <Dhruv pose="backpack" size={130} decorative />
+          <div className="flex flex-1 basis-[300px] flex-col gap-3">
+            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">{t('dash_first_step')}</span>
+            <h2 className="font-display text-[28px] font-bold leading-tight text-white">{localAnswers > 0 ? t('dash_answered', { n: localAnswers }) : t('dash_take_test')}</h2>
+            <p className="text-night-text">{t('dash_test_body')}</p>
+            {localAnswers > 0 && <ProgressBar value={localAnswers} max={40} tone="saffron" className="max-w-sm bg-night-3" label="Test progress" />}
           </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              to="/ai-mentor"
-              className="px-4 py-2.5 rounded-xl glass-panel bg-slate-900 border border-slate-700 hover:bg-slate-800 text-cyan-300 font-bold text-xs flex items-center gap-2 transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Ask AI Career Mentor</span>
-            </Link>
-
-            <Link
-              to="/assessment"
-              className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue transition-colors flex items-center gap-2"
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>{dashboard?.assessmentCompleted ? 'Retake 16-D Assessment' : 'Take 16-D Assessment'}</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Profile Completion Bar Banner */}
-        <div className="p-4 rounded-xl glass-panel bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-600/20 text-cyan-400 flex items-center justify-center font-bold text-sm border border-brand-500/30">
-              {completionScore}%
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-white">Profile Readiness Score</h4>
-              <p className="text-[11px] text-slate-400">
-                {completionScore >= 80 ? 'Profile comprehensive for accurate AI matching' : 'Add your favourite subjects and marks to sharpen recommendations'}
-              </p>
+          <Button to={localAnswers > 0 ? '/assessment' : '/start'} variant="white" size="lg">{localAnswers > 0 ? t('dash_resume') : t('dash_start_test')}</Button>
+        </section>
+      ) : roadmap ? (
+        <section className="flex flex-wrap items-center justify-between gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
+          <div className="flex flex-1 basis-[320px] flex-col gap-3">
+            <span className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">{t('dash_continue')}</span>
+            <h2 className="font-display text-[26px] font-bold leading-tight text-white">{milestone?.title} · {roadmap.careerTitle}</h2>
+            <div className="flex max-w-md flex-col gap-2">
+              <div className="flex justify-between text-sm text-night-text"><span>{t('tasks_done', { done: progress.done, total: progress.total })}</span><span>{milestone?.period}</span></div>
+              <ProgressBar value={progress.done} max={progress.total || 1} tone="saffron" className="bg-night-3" label="Plan progress" />
             </div>
           </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="w-full sm:w-48 h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full"
-                style={{ width: `${completionScore}%` }}
-              />
-            </div>
-            <Link
-              to="/onboarding"
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 whitespace-nowrap"
-            >
-              Edit Profile
-            </Link>
+          <Button to="/plan" variant="white">{t('dash_open_plan')}</Button>
+        </section>
+      ) : (
+        <section className="flex flex-wrap items-center gap-6 rounded-4xl bg-ink p-7 text-white sm:p-9">
+          <Dhruv pose="read" size={120} decorative />
+          <div className="flex flex-1 basis-[300px] flex-col gap-2">
+            <h2 className="font-display text-[26px] font-bold text-white">{t('dash_build_plan')}</h2>
+            <p className="text-night-text">{t('dash_build_body')}</p>
           </div>
-        </div>
+          <Button to="/plan" variant="white" size="lg">{t('report_create_plan')}</Button>
+        </section>
+      )}
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Left Column (2 Cols): Recommendations & Roadmap */}
-          <div className="lg:col-span-2 space-y-8">
-            
-            {/* Top Recommended Careers */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Your Top Matched Pathways</h3>
-                  <p className="text-xs text-slate-400">Synthesized from your cognitive strengths & subject preferences.</p>
-                </div>
-                <Link to="/assessment/results" className="text-xs font-bold text-cyan-400 hover:underline">
-                  View Full Dossier
-                </Link>
+      <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
+        <div className="flex min-w-0 flex-col gap-6">
+          {roadmap && milestone && (
+            <section aria-labelledby="week-title" className="card flex flex-col gap-4 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="week-title" className="text-xl font-bold">{t('dash_right_now')}: {milestone.period.replace(/\s*\(.*\)/, '')}</h2>
+                <span className="text-sm text-ink-3">{t('dash_tap')}</span>
               </div>
+              <TaskList tasks={milestone.tasks} onToggle={toggle} busyIndex={busy} />
+            </section>
+          )}
 
-              {dashboard?.topRecommendations && dashboard.topRecommendations.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {dashboard.topRecommendations.slice(0, 4).map((rec: any, i: number) => (
-                    <div
+          <section aria-labelledby="matches-title" className="card flex flex-col gap-4 p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="matches-title" className="text-xl font-bold">{t('dash_matches')}</h2>
+              {data.assessmentCompleted && <Link to="/assessment/results" className="link text-[15px]">{t('full_report')}</Link>}
+            </div>
+            {data.topRecommendations?.length ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {data.topRecommendations.slice(0, 3).map((r: any) => (
+                  <Link key={r.careerId} to={`/careers/${r.slug}`} className="flex flex-col gap-2 rounded-2xl border border-line p-5 hover:border-royal-300">
+                    <FitBadge score={r.matchScore} />
+                    <span className="text-base font-bold">{r.title}</span>
+                    <span className="text-sm text-ink-3">{formatLPA(r.salaryMinINR, r.salaryMaxINR)}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <StateMessage compact pose="relax" title={t('dash_no_matches')} body={t('dash_no_matches_body')} action={<Button size="sm" to="/start">{t('dash_start_test')}</Button>} />
+            )}
+          </section>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-6">
+          <ParentLinks pendingOnly onChange={load} />
+
+          {data.assessmentCompleted && (
+            <section aria-labelledby="streak-title" className="card flex items-center gap-4 p-5">
+              <Dhruv pose={data.weeklyStreak > 0 ? 'cheer' : 'run'} size={84} decorative />
+              <div className="flex flex-1 flex-col gap-2">
+                <h2 id="streak-title" className="font-display text-xl font-bold">
+                  {data.weeklyStreak > 0 ? t('streak_title', { n: data.weeklyStreak }) : t('streak_start')}
+                </h2>
+                <div role="img" aria-label={`${t('streak_weeks')}: ${(data.recentWeeks || []).filter(Boolean).length}/6`} className="flex gap-1.5">
+                  {(data.recentWeeks || []).map((active: boolean, i: number) => (
+                    <span
                       key={i}
-                      className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3 flex flex-col justify-between hover:border-slate-700 transition-colors"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-brand-500/20 text-cyan-400 border border-brand-500/30">
-                            {rec.category}
-                          </span>
-                          <span className="text-xs font-black text-cyan-300">{rec.matchScore}% Match</span>
-                        </div>
-                        <h4 className="text-base font-bold text-white">{rec.title}</h4>
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{rec.whyItMatches}</p>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Stream: <strong className="text-slate-200">{rec.stream}</strong></span>
-                        <Link
-                          to={`/careers/${rec.slug}`}
-                          className="font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                        >
-                          <span>Explore</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    </div>
+                      className={cn(
+                        'h-2.5 w-7 rounded-full',
+                        active ? 'bg-saffron-500' : i === 5 ? 'border-2 border-dashed border-saffron-500' : 'bg-line'
+                      )}
+                    />
                   ))}
                 </div>
-              ) : (
-                <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-3">
-                  <Compass className="w-8 h-8 mx-auto text-cyan-400" />
-                  <p className="text-sm font-semibold text-slate-300">Complete the 16-D assessment to generate explainable career matches.</p>
-                  <Link to="/assessment" className="inline-block px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-bold">
-                    Start Assessment
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Active Roadmap & Milestones */}
-            <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
-                    Active Strategy Roadmap
-                  </span>
-                  <h3 className="text-lg font-bold text-white">
-                    {dashboard?.activeRoadmap?.careerTitle || 'Class 10-12 Career Preparation'}
-                  </h3>
-                </div>
-                <Link
-                  to="/roadmap"
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
-                >
-                  <ListTodo className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Interactive Checklist</span>
-                </Link>
+                <p className="text-sm text-ink-3">
+                  {data.thisWeekDone > 0 ? t('streak_done', { n: data.thisWeekDone }) : data.weeklyStreak > 0 ? t('streak_keep') : t('streak_begin')}
+                </p>
               </div>
+            </section>
+          )}
 
-              {dashboard?.activeRoadmap ? (
-                <div className="space-y-4">
-                  {dashboard.activeRoadmap.milestones.slice(0, 2).map((m: any, mIdx: number) => (
-                    <div key={mIdx} className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span className="text-cyan-400">{m.period}</span>
-                        <span className="text-slate-300">{m.title}</span>
-                      </div>
-                      <div className="space-y-1.5 text-xs text-slate-300">
-                        {m.tasks.slice(0, 3).map((t: any, tIdx: number) => (
-                          <div key={tIdx} className="flex items-center gap-2">
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] ${
-                              t.completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'border border-slate-700'
-                            }`}>
-                              {t.completed ? '✓' : ''}
-                            </span>
-                            <span className={t.completed ? 'line-through text-slate-500' : ''}>{t.task}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-xs text-slate-400">
-                  <p>No active roadmap generated yet.</p>
-                  <Link to="/roadmap" className="text-cyan-400 font-bold hover:underline mt-1 inline-block">
-                    Build Your 90-Day Plan
-                  </Link>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* Right Column: Quick Stats & Entitlements */}
-          <div className="space-y-6">
-            
-            {/* Subscription & Entitlements Card */}
-            <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Active Membership</span>
-                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-brand-500/20 text-cyan-300 border border-brand-500/30">
-                  {subscription?.planName || 'Free Explorer'}
-                </span>
+          <section aria-labelledby="dhruv-title" className="card flex flex-col gap-3.5 p-6">
+            <div className="flex items-center gap-3">
+              <Dhruv pose="think" size={56} decorative />
+              <div className="flex flex-col">
+                <h2 id="dhruv-title" className="text-xl font-bold">{t('dash_ask')}</h2>
+                <span className="text-sm text-ink-3">AI mentor · cites official sources</span>
               </div>
-
-              {!isPremium ? (
-                <div className="space-y-3 pt-2">
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Unlock full 40-question psychometric report, AI mentor queries, 5-year roadmap builder, and downloadable PDF career dossiers.
-                  </p>
-                  <button
-                    onClick={() => onOpenCheckout ? onOpenCheckout('PREMIUM_STUDENT') : navigate('/pricing')}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-xs shadow-md glow-blue transition-all"
-                  >
-                    Upgrade to Premium (₹999/yr)
-                  </button>
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>All Premium features, reports & AI mentor active.</span>
-                </div>
-              )}
             </div>
-
-            {/* Quick Links & Resources */}
-            <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3 text-xs">
-              <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">Guidance Directory</h4>
-              
-              <Link to="/stream-guide" className="p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 flex items-center justify-between transition-colors">
-                <span className="text-slate-200">Class 10 Stream Selection Guide</span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
-              <Link to="/colleges" className="p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 flex items-center justify-between transition-colors">
-                <span className="text-slate-200">NIRF Top Colleges Directory</span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
-              <Link to="/scholarships" className="p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 flex items-center justify-between transition-colors">
-                <span className="text-slate-200">Central Sector Scholarships</span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
-              <Link to="/counselors" className="p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 flex items-center justify-between transition-colors">
-                <span className="text-slate-200">Book 1-on-1 Counselor Session</span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
+            {['Is PCMB too much workload for me?', 'Which entrance exams should I plan for?'].map((q) => (
+              <Link key={q} to={`/mentor?q=${encodeURIComponent(q)}`} className="rounded-xl border border-line bg-mist px-4 py-3 text-[15px] hover:border-royal-300">{q}</Link>
+            ))}
+            <div className="flex items-center gap-3 border-t border-line pt-3.5">
+              <Character who="ananya" size={40} animate={false} />
+              <span className="text-sm text-ink-2">Prefer a person? <Link to="/counselors" className="link">Book a counsellor</Link></span>
             </div>
+          </section>
 
-          </div>
+          <section aria-label="Saved" className="grid grid-cols-2 gap-3">
+            <Link to="/careers" className="card flex flex-col gap-1 p-5 hover:border-royal-300">
+              <Bookmark className="h-5 w-5 text-royal-500" aria-hidden="true" />
+              <span className="mt-1 font-display text-2xl font-bold">{data.savedCareersCount}</span>
+              <span className="text-sm text-ink-3">{t('dash_saved_careers')}</span>
+            </Link>
+            <Link to="/colleges" className="card flex flex-col gap-1 p-5 hover:border-royal-300">
+              <GraduationCap className="h-5 w-5 text-royal-500" aria-hidden="true" />
+              <span className="mt-1 font-display text-2xl font-bold">{data.savedCollegesCount}</span>
+              <span className="text-sm text-ink-3">{t('dash_saved_colleges')}</span>
+            </Link>
+          </section>
 
+          {data.completionScore < 80 && (
+            <section className="card flex flex-col gap-3 p-6">
+              <div className="flex items-center justify-between"><h2 className="text-lg font-bold">{t('dash_profile')}</h2><span className="font-bold text-royal-600">{data.completionScore}%</span></div>
+              <ProgressBar value={data.completionScore} label="Profile strength" />
+              <p className="text-sm leading-relaxed text-ink-2">Add your favourite subjects and budget to sharpen your matches.</p>
+              <Button to="/onboarding" variant="secondary" size="sm" className="self-start">Complete profile</Button>
+            </section>
+          )}
+
+          {!data.isPremium && (
+            <section className="flex flex-col gap-3 rounded-3xl bg-royal-50 p-6">
+              <h2 className="text-lg font-bold">See every match</h2>
+              <p className="text-sm leading-relaxed text-ink-2">Premium unlocks all matches, your full plan and unlimited chats with Dhruv.</p>
+              <Button to="/pricing" size="sm" className="self-start">See plans</Button>
+            </section>
+          )}
+
+          <Link to="/mentor" className="flex items-center gap-3 rounded-2xl bg-leaf-50 px-5 py-4 text-[15px] font-semibold text-leaf-900">
+            <MessageCircle className="h-5 w-5" aria-hidden="true" />Stuck on something? Dhruv can help any time.
+          </Link>
         </div>
-
       </div>
     </div>
   );

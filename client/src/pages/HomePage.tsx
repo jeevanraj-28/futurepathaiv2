@@ -1,716 +1,400 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { ArrowRight, Check, ChevronDown, GraduationCap, Search, ShieldCheck } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { Career } from '../types';
-import {
-  Compass,
-  Sparkles,
-  ArrowRight,
-  CheckCircle2,
-  BookOpen,
-  GraduationCap,
-  TrendingUp,
-  ShieldCheck,
-  HelpCircle,
-  ChevronRight,
-  IndianRupee,
-  Search,
-  Layers,
-  Award,
-  Users,
-  Building,
-  Target,
-  FileText
-} from 'lucide-react';
+import type { Career } from '../types';
+import { Badge, Button, SectionHeader } from '../components/ui';
+import { Dhruv } from '../components/brand';
+import { Character, type CharacterId } from '../components/Character';
+import { cn, formatLPA } from '../lib/utils';
 
-export const HomePage: React.FC<{ onOpenCheckout?: (planCode: string) => void }> = ({ onOpenCheckout }) => {
-  const { user } = useAuth();
+const PATHS: Array<{ id: 'c10' | 'c12' | 'parent'; who: CharacterId; title: string; sub: string; cta: string; to: string }> = [
+  { id: 'c10', who: 'aarav', title: 'Class 9–10', sub: 'Pick the right stream', cta: 'Find my stream', to: '/start?class=10' },
+  { id: 'c12', who: 'meera', title: 'Class 11–12', sub: 'Choose degree and career', cta: 'Find my career', to: '/start?class=12' },
+  { id: 'parent', who: 'rajesh', title: 'I’m a parent', sub: 'Guide my child', cta: 'Start as a parent', to: '/register?role=PARENT' },
+];
+
+const MILESTONES = {
+  c10: {
+    title: 'Choosing a stream for Class 11',
+    body: 'Compare every stream on what you would study, where it leads, what it costs, and how well it suits the way you think.',
+    points: ['Board eligibility shown separately from personal fit', 'Four-year cost estimates in ₹ for each stream', 'Careers each stream keeps open — and closes'],
+    cta: 'Compare streams', to: '/stream-guide',
+    options: [
+      ['Science (PCM)', 'Engineering, data, architecture, defence'],
+      ['Science (PCB)', 'Medicine, allied health, biotech'],
+      ['Science (PCMB)', 'Keeps engineering and medicine open'],
+      ['Commerce', 'CA, finance, business, economics'],
+      ['Humanities', 'Law, design, civil services, media'],
+      ['Vocational', 'Skill-based careers with early work'],
+    ],
+  },
+  c12: {
+    title: 'Choosing a degree and career',
+    body: 'Explore 50+ careers with real responsibilities, entrance exams, top colleges and salary ranges — matched to your report.',
+    points: ['Entrance exam guide: JEE, NEET, CLAT, CUET, UCEED, NDA', 'College finder with NIRF rank, fees and admission route', 'Scholarships matched to eligibility and family income'],
+    cta: 'Explore careers', to: '/careers',
+    options: [
+      ['Engineering & tech', 'JEE Main, JEE Advanced, BITSAT'],
+      ['Medicine & health', 'NEET UG'],
+      ['Law', 'CLAT, AILET'],
+      ['Design', 'UCEED, NID DAT, NIFT'],
+      ['Commerce & finance', 'CA Foundation, CUET UG'],
+      ['Defence', 'NDA'],
+    ],
+  },
+};
+
+const FEATURES = [
+  { tag: 'Career library', title: '50+ careers, explained', body: 'What the work is really like, subjects needed, degrees, colleges and verified salary ranges.', link: 'Browse careers', to: '/careers' },
+  { tag: 'Stream guide', title: 'Stream comparison', body: 'PCM, PCB, PCMB, Commerce, Humanities and Vocational compared on fit, scope and cost.', link: 'Compare streams', to: '/stream-guide' },
+  { tag: 'Colleges', title: 'College finder', body: 'IITs, AIIMS, NLUs, IIMs, NID, BITS and more — NIRF rank, fees and how to get in.', link: 'Find colleges', to: '/colleges' },
+  { tag: 'Exams', title: 'Entrance exam guide', body: 'Eligibility, pattern and official portals for every major entrance exam in one place.', link: 'See exams', to: '/exams' },
+  { tag: 'Funding', title: 'Scholarship finder', body: 'Central and state schemes filtered by marks, category and family income.', link: 'Find scholarships', to: '/scholarships' },
+  { tag: 'Support', title: 'Dhruv and real counsellors', body: 'Ask the AI mentor any time, then book a verified counsellor when you need a person.', link: 'Meet the counsellors', to: '/counselors' },
+];
+
+const FAQS = [
+  ['How is this different from a free online career quiz?', 'Quizzes usually give you one label without explaining it. FuturePath measures 16 areas — reasoning, interests, values and working style — and shows which of your strengths led to each recommendation, alongside board requirements and real salary data.'],
+  ['Will it decide my future for me?', 'No. Your report shows possibilities, trade-offs and alternative routes so that you, your parents and your counsellor can decide together. It never guarantees admission or a job.'],
+  ['Which boards and classes is it for?', 'Students in Classes 9 to 12 on CBSE, CISCE and State boards. Class 9–10 students get stream guidance; Class 11–12 students get degree, exam and career guidance.'],
+  ['How does parent access and consent work?', 'A parent requests a link from their account. Only after the student approves can the parent see the report and planner. Either side can remove the link at any time.'],
+  ['Is my child’s data safe?', 'We follow the Digital Personal Data Protection Act 2023, collect only what guidance needs, and never sell student data to coaching centres or advertisers.'],
+];
+
+const PREVIEW_STRENGTHS: Array<[string, number]> = [['Logical reasoning', 82], ['Numerical reasoning', 78], ['Scientific thinking', 74], ['Creative thinking', 61]];
+
+export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedClassTab, setSelectedClassTab] = useState<'CLASS_10' | 'CLASS_12'>('CLASS_10');
-  const [featuredCareers, setFeaturedCareers] = useState<Career[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [path, setPath] = useState<'c10' | 'c12' | 'parent'>('c10');
+  const [tab, setTab] = useState<'c10' | 'c12'>('c10');
+  const [faq, setFaq] = useState(0);
+  const [query, setQuery] = useState('');
+  const [careers, setCareers] = useState<Career[]>([]);
 
   useEffect(() => {
-    ApiService.getCareers().then(res => {
-      if (res.success && res.careers) {
-        setFeaturedCareers(res.careers.slice(0, 6));
-      }
-    }).catch(err => console.error(err));
+    ApiService.getCareers()
+      .then((res) => res.success && setCareers(res.careers.slice(0, 6)))
+      .catch(() => setCareers([]));
   }, []);
 
-  const handleMiniSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/careers?search=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate('/careers');
-    }
-  };
-
-  const faqs = [
-    {
-      q: 'How is FuturePath AI different from generic free online career quizzes?',
-      a: 'Most quizzes assign a single arbitrary personality type without explaining why. FuturePath AI measures 16 distinct cognitive, practical, and environmental dimensions, evaluates board prerequisites (CBSE/State Boards), benchmarks against verified government employment data, and separates current readiness from long-term compatibility.'
-    },
-    {
-      q: 'Does this platform decide a student\'s future definitively?',
-      a: 'No, and we explicitly reject that premise. Career selection is an evidence-informed decision-making process. FuturePath AI maps possibilities, highlights skill gaps, compares trade-offs, and provides concrete alternative routes so students, parents, and counselors can make informed choices together.'
-    },
-    {
-      q: 'What is the Class 10 Stream Selection Module?',
-      a: 'A dedicated diagnostic tool that compares Science (PCM), Science (PCB), Science (PCMB), Commerce (with or without math), Humanities, and Vocational skill streams. It details required subjects, common degree families, career outcomes, and college costs in INR.'
-    },
-    {
-      q: 'How does the Parent Portal work?',
-      a: 'Parents can link their account to their child\'s profile with consent. Parents view objective assessment dossiers, stream comparisons, and use our 4-year Higher Education Cost Estimator to plan tuition, living expenses, and entrance exam preparation.'
-    },
-    {
-      q: 'Is student data safe and compliant with Indian regulations?',
-      a: 'Yes. We strictly adhere to the Digital Personal Data Protection (DPDP) Act 2023. We never sell identifiable student data to coaching centers or third-party advertisers.'
-    }
-  ];
+  const current = PATHS.find((p) => p.id === path)!;
+  const milestone = MILESTONES[tab];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      
-      {/* Hero Section */}
-      <section className="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden">
-        {/* Subtle background glow circles */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-600/15 rounded-full blur-3xl pointer-events-none -z-10" />
-        <div className="absolute top-1/3 right-10 w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          {/* Top Pill Announcement */}
-          <div className="flex justify-center mb-6">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-panel border border-brand-500/30 text-xs text-slate-300 shadow-md">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-              <span className="font-semibold text-cyan-300">New for 2026 Admissions:</span>
-              <span>Updated with NEP 2020 Multi-Disciplinary Pathways & NIRF 2025 Data</span>
-            </div>
-          </div>
-
-          {/* Main Headline */}
-          <div className="text-center max-w-4xl mx-auto space-y-6">
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.1] text-white">
-              Transform Career Selection From <span className="bg-gradient-to-r from-brand-400 via-blue-400 to-cyan-300 bg-clip-text text-transparent">Guesswork</span> Into Evidence.
+    <>
+      {/* Hero */}
+      <section className="border-b border-line bg-mist">
+        <div className="page grid items-center gap-14 py-16 lg:grid-cols-[1.05fr_1fr] lg:py-20">
+          <div className="flex flex-col gap-7">
+            <Badge tone="saffron" className="self-start text-sm"><GraduationCap className="h-4 w-4" aria-hidden="true" />Built for Classes 9–12 in India</Badge>
+            <h1 className="h-display text-[40px] sm:text-5xl lg:text-[60px]">
+              Choose your stream and career with <span className="text-royal-500">confidence</span>, not guesswork.
             </h1>
-
-            <p className="text-base sm:text-xl text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed">
-              The AI career intelligence platform built for <strong className="text-white">Classes 10 & 12 in India</strong>. Discover natural strengths, choose the right academic stream, and map 5-year pathways to premier degrees and careers.
+            <p className="max-w-xl text-lg leading-relaxed text-ink-2 sm:text-[19px]">
+              A 25-minute discovery test maps how you think and what you enjoy, then shows the streams, degrees and careers that fit — with the reasons, costs and exams for each.
             </p>
-
-            {/* Interactive Search Bar Mini Demo */}
-            <form onSubmit={handleMiniSearch} className="max-w-xl mx-auto relative pt-2">
-              <div className="relative flex items-center">
-                <Search className="w-5 h-5 text-slate-400 absolute left-4 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search 50+ careers: AI Engineer, Commercial Pilot, CA, Doctor..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-32 py-4 rounded-2xl bg-slate-900/90 border border-slate-700 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 shadow-xl transition-all"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                >
-                  <span>Explore</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+            <div className="flex flex-col gap-3">
+              <p className="text-[15px] font-semibold">Where are you right now?</p>
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                {PATHS.map((p) => {
+                  const on = p.id === path;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => { setPath(p.id); if (p.id !== 'parent') setTab(p.id); }}
+                      className={cn(
+                        'flex min-h-[44px] flex-col items-start gap-1 rounded-xl p-4 text-left transition-colors',
+                        on ? 'border-2 border-royal-500 bg-royal-50 p-[15px]' : 'border border-line-strong bg-white hover:border-royal-300'
+                      )}
+                    >
+                      <Character who={p.who} size={44} animate={false} />
+                      <span className="mt-1 font-bold">{p.title}</span>
+                      <span className="text-sm text-ink-3">{p.sub}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </form>
-
-            {/* Primary CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Link
-                to="/assessment"
-                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-xl glow-blue transition-all flex items-center justify-center gap-2"
-              >
-                <Compass className="w-4 h-4 text-cyan-300" />
-                <span>Take Free 16-D Assessment</span>
-              </Link>
-              <Link
-                to="/stream-guide"
-                className="w-full sm:w-auto px-8 py-4 rounded-xl glass-panel bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm transition-all flex items-center justify-center gap-2"
-              >
-                <BookOpen className="w-4 h-4 text-indigo-400" />
-                <span>Class 10 Stream Selection Matrix</span>
-              </Link>
             </div>
-
-            {/* Credibility badges */}
-            <div className="pt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                50+ Verified Indian Careers
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                CBSE, CISCE & State Boards
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                No Blind Automated Guesswork
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Transparent Explainable Scoring
-              </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button to={current.to} size="lg">{current.cta}<ArrowRight className="h-5 w-5" aria-hidden="true" /></Button>
+              <Button to="/how-it-works" size="lg" variant="secondary" className="font-semibold">How it works</Button>
             </div>
-
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-2">
+              {['Free to start', 'CBSE, CISCE & State boards', 'Your data is never sold'].map((t) => (
+                <li key={t} className="flex items-center gap-1.5"><Check className="h-4 w-4 text-leaf-600" aria-hidden="true" />{t}</li>
+              ))}
+            </ul>
           </div>
 
-        </div>
-      </section>
-
-      {/* Class 10 vs Class 12 Dual Pathway Journey */}
-      <section className="py-16 bg-slate-900/50 border-y border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-              Tailored Guidance for Two Decisive Milestones
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2">
-              Select your academic stage to experience a customized intelligence pathway.
-            </p>
-
-            {/* Toggle Switch */}
-            <div className="inline-flex p-1.5 rounded-xl bg-slate-950 border border-slate-800 mt-6">
-              <button
-                onClick={() => setSelectedClassTab('CLASS_10')}
-                className={`px-6 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                  selectedClassTab === 'CLASS_10'
-                    ? 'bg-brand-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Class 10: Stream Selection
-              </button>
-              <button
-                onClick={() => setSelectedClassTab('CLASS_12')}
-                className={`px-6 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                  selectedClassTab === 'CLASS_12'
-                    ? 'bg-brand-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Class 12: Degree & Exam Strategy
-              </button>
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          {selectedClassTab === 'CLASS_10' ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-cyan-400 flex items-center justify-center border border-blue-500/20 font-bold">
-                  01
+          {/* Product preview */}
+          <div className="relative sm:pt-16 lg:pt-0">
+            <Dhruv eager pose="wave" size={120} className="absolute -top-2 right-4 z-10 hidden sm:block lg:-top-[104px]" bob decorative />
+            <div className="flex flex-col gap-5 rounded-3xl border border-line bg-white p-7 shadow-lift">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-3">Sample report · Class 10, CBSE</p>
+                  <p className="mt-1.5 font-display text-2xl font-bold">Recommended stream: Science (PCM)</p>
                 </div>
-                <h3 className="text-lg font-bold text-white">16-Dimension Cognitive Profile</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Go beyond school marks. Evaluate numerical speed, spatial reasoning, verbal ability, and practical trouble-shooting to identify true cognitive affinity.
-                </p>
-                <div className="text-xs text-cyan-300 font-semibold flex items-center gap-1">
-                  <span>Covers 40 validated questions</span>
-                </div>
+                <Badge tone="leaf">Strong fit</Badge>
               </div>
-
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 font-bold">
-                  02
-                </div>
-                <h3 className="text-lg font-bold text-white">Stream Compatibility Matrix</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Compare Science (PCM), Science (PCB), Commerce, and Humanities. View trade-offs, required study stamina, degree options, and future mobility before locking in.
-                </p>
-                <div className="text-xs text-emerald-300 font-semibold flex items-center gap-1">
-                  <span>Transparent pros & trade-offs</span>
-                </div>
-              </div>
-
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 font-bold">
-                  03
-                </div>
-                <h3 className="text-lg font-bold text-white">Personalized 90-Day Transition</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Get a week-by-week action checklist for bridge courses, foundation books (NCERT + Olympiad), and discussion questions for parents and teachers.
-                </p>
-                <div className="text-xs text-amber-300 font-semibold flex items-center gap-1">
-                  <span>Concrete task roadmaps</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20 font-bold">
-                  01
-                </div>
-                <h3 className="text-lg font-bold text-white">Degree & College Matching</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Match your stream and marks against 50+ degree programs across Engineering, Medicine, Law, Design, Commerce, and Defense services.
-                </p>
-                <div className="text-xs text-cyan-300 font-semibold flex items-center gap-1">
-                  <span>NIRF ranked colleges & official fees</span>
-                </div>
-              </div>
-
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20 font-bold">
-                  02
-                </div>
-                <h3 className="text-lg font-bold text-white">Entrance Exam Intelligence</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Track dates, syllabus blueprints, and cutoff dynamics for JEE, NEET, CUET, CLAT, UCEED, and state CETs without falling for false coaching hype.
-                </p>
-                <div className="text-xs text-indigo-300 font-semibold flex items-center gap-1">
-                  <span>Official testing body information</span>
-                </div>
-              </div>
-
-              <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20 font-bold">
-                  03
-                </div>
-                <h3 className="text-lg font-bold text-white">Scholarships & Cost Planning</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Discover government and merit scholarships (INSPIRE, Central Sector, PMSS) and calculate realistic 4-year financial costs for your family.
-                </p>
-                <div className="text-xs text-rose-300 font-semibold flex items-center gap-1">
-                  <span>Financial planning & alerts</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </section>
-
-      {/* Featured 50+ Structured Careers Spotlight */}
-      <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-10 gap-4">
-          <div>
-            <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block mb-1">
-              Structured Indian Career Database
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white">
-              Explore 50+ Curated Pathways
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Each career includes required Class 12 subjects, entry qualifications, verified salary ranges in LPA, top institutions, and entrance examinations.
-            </p>
-          </div>
-          <Link
-            to="/careers"
-            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 group"
-          >
-            <span>View All 50+ Careers</span>
-            <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
-
-        {/* Career Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredCareers.map(career => (
-            <div
-              key={career.id}
-              className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all hover:-translate-y-1 group flex flex-col justify-between"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-brand-500/20 text-cyan-400 border border-brand-500/30">
-                    {career.category}
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-400">
-                    Stream: <strong className="text-slate-200">{career.stream}</strong>
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">
-                  {career.title}
-                </h3>
-
-                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                  {career.shortDescription}
-                </p>
-
-                <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-800/80">
-                  <div className="text-slate-400">
-                    <span>Salary: </span>
-                    <strong className="text-emerald-400">
-                      ₹{(career.salaryMinINR / 100000).toFixed(1)}L - ₹{(career.salaryMaxINR / 100000).toFixed(1)}L
-                    </strong>
+              <div className="flex flex-col gap-3">
+                <p className="text-[15px] font-semibold">Top strengths</p>
+                {PREVIEW_STRENGTHS.map(([label, v]) => (
+                  <div key={label} className="grid grid-cols-[150px_1fr] items-center gap-3 text-sm">
+                    <span className="text-ink-2">{label}</span>
+                    <span className="block h-2 overflow-hidden rounded-full bg-[#EDF0F5]"><span className="block h-full rounded-full bg-royal-500" style={{ width: `${v}%` }} /></span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                    Demand: {career.futureDemand}
-                  </span>
-                </div>
+                ))}
               </div>
+              <div className="flex flex-col gap-2.5 border-t border-line pt-4">
+                <p className="text-[15px] font-semibold">Careers that fit</p>
+                {[['Data Scientist', 'Numbers + logic + curiosity', 'Strong fit'], ['AI & ML Engineer', 'Logic + problem solving', 'Strong fit'], ['Actuary', 'Numerical reasoning + risk', 'Good fit']].map(([t, why, band]) => (
+                  <div key={t} className="flex items-center justify-between gap-3 rounded-xl bg-mist px-4 py-3">
+                    <span className="flex flex-col"><span className="font-semibold">{t}</span><span className="text-[13px] text-ink-3">{why}</span></span>
+                    <Badge tone={band === 'Strong fit' ? 'leaf' : 'royal'}>{band}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <div className="pt-4 mt-4 border-t border-slate-800/60 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">
-                  Exams: {career.entranceExams?.slice(0, 2).join(', ')}
-                </span>
-                <Link
-                  to={`/careers/${career.slug}`}
-                  className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                >
-                  <span>Dossier</span>
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
+      {/* Sources */}
+      <section className="border-b border-line">
+        <div className="page flex flex-wrap items-center gap-x-8 gap-y-3 py-7">
+          <p className="text-sm font-medium text-ink-3">Guidance referenced from official sources</p>
+          <div className="flex flex-wrap gap-x-7 gap-y-2 font-display text-lg font-bold text-ink-2">
+            {['CBSE', 'NTA', 'NMC', 'AICTE', 'NIRF', 'Consortium of NLUs', 'UGC'].map((s) => <span key={s}>{s}</span>)}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="page flex flex-col gap-12 py-24">
+        <SectionHeader eyebrow="How it works" title="From “I don’t know” to a plan you can act on" />
+        <div className="grid gap-6 md:grid-cols-3">
+          {[
+            ['Take the discovery test', '40 questions across 16 areas — reasoning, interests, values and working style. No sign-up needed to start.', 'About 25 minutes'],
+            ['Read your report', 'Your strengths, the stream that suits you, and career matches — each with a plain-language reason, salary range and exams.', 'Share it on WhatsApp'],
+            ['Follow your plan', 'A step-by-step plan for the next 30 days, 90 days and year: subjects, exams, books and scholarships.', 'Ask Dhruv at any step'],
+          ].map(([title, body, foot], i) => (
+            <div key={title} className="card flex flex-col gap-3.5 p-7">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-royal-50 font-display text-xl font-extrabold text-royal-500">{i + 1}</span>
+              <h3 className="text-[21px] font-bold">{title}</h3>
+              <p className="leading-relaxed text-ink-2">{body}</p>
+              <p className="mt-auto text-sm font-semibold text-ink-3">{foot}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* The 16-Dimension Assessment Showcase */}
-      <section className="py-20 bg-slate-900/40 border-y border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            
-            <div className="space-y-6">
-              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                Cognitive & Psychometric Architecture
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                Not a 5-minute quiz. A genuine 16-dimension intelligence engine.
-              </h2>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                Ordinary tests reduce a child to a single personality label like "INTJ" or "Creative". FuturePath AI breaks down capability across 16 critical cognitive, practical, and environmental vectors:
-              </p>
-
-              <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 pt-2">
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Numerical Reasoning</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Logical & Deductive Logic</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Verbal & Semantic Nuance</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Spatial 3D Visualization</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Scientific & Empirical Drive</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Practical Problem Solving</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Creative Lateral Thinking</span>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-                  <span>Risk Tolerance & Values</span>
-                </div>
+      {/* Two decisions */}
+      <section className="border-y border-line bg-mist">
+        <div className="page flex flex-col gap-10 py-24">
+          <SectionHeader
+            eyebrow="Two big decisions"
+            title="Guidance for the exact moment you’re in"
+            action={
+              <div role="tablist" aria-label="Choose your class" className="inline-flex rounded-xl border border-line bg-white p-1">
+                {(['c10', 'c12'] as const).map((id) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    type="button"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                    className={cn('min-h-[44px] rounded-[9px] px-4 text-[15px] font-semibold', tab === id ? 'bg-ink text-white' : 'text-ink-2')}
+                  >
+                    {id === 'c10' ? 'After Class 10' : 'After Class 12'}
+                  </button>
+                ))}
               </div>
-
-              <div className="pt-2">
-                <Link
-                  to="/assessment"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-xs shadow-md glow-blue transition-all"
-                >
-                  <span>Start the 40-Question Assessment</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+            }
+          />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="card flex flex-col gap-5 p-9">
+              <h3 className="font-display text-3xl font-bold tracking-tight">{milestone.title}</h3>
+              <p className="text-[17px] leading-relaxed text-ink-2">{milestone.body}</p>
+              <ul className="flex flex-col gap-3">
+                {milestone.points.map((pt) => (
+                  <li key={pt} className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0 text-royal-500" aria-hidden="true" />{pt}</li>
+                ))}
+              </ul>
+              <Button to={milestone.to} variant="dark" className="mt-2 self-start">{milestone.cta}</Button>
             </div>
-
-            {/* Visual Diagnostic Preview Card */}
-            <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-700 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div>
-                  <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
-                    Sample Diagnostic Result
-                  </span>
-                  <h4 className="text-base font-bold text-white">Cognitive Dimension Breakdown</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {milestone.options.map(([name, leads]) => (
+                <div key={name} className="card flex flex-col gap-1.5 p-5">
+                  <span className="font-bold">{name}</span>
+                  <span className="text-sm leading-snug text-ink-3">{leads}</span>
                 </div>
-                <span className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Reliability: 96%
-                </span>
-              </div>
-
-              {/* Progress Bar Indicators */}
-              <div className="space-y-3 text-xs">
-                <div>
-                  <div className="flex justify-between text-slate-300 mb-1">
-                    <span>Logical Reasoning</span>
-                    <span className="font-bold text-cyan-400">92%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full" style={{ width: '92%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-300 mb-1">
-                    <span>Scientific Thinking</span>
-                    <span className="font-bold text-cyan-400">90%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full" style={{ width: '90%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-300 mb-1">
-                    <span>Numerical Reasoning</span>
-                    <span className="font-bold text-cyan-400">88%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full" style={{ width: '88%' }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-slate-300 mb-1">
-                    <span>Spatial 3D Reasoning</span>
-                    <span className="font-bold text-cyan-400">82%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full" style={{ width: '82%' }}></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-1">
-                <span className="font-bold text-white block">Explainable Rationale:</span>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Student demonstrates top decile aptitude for quantitative deduction and empirical modeling. Highly aligned with Science PCM leading to AI & Robotics Systems or Aerospace Engineering.
-                </p>
-              </div>
+              ))}
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* Pricing Teaser Section */}
-      <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block mb-1">
-            Simple, Transparent Indian Pricing
-          </span>
-          <h2 className="text-3xl font-extrabold text-white">Invest in Their Future With Clarity</h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-2">
-            No hidden subscriptions or predatory auto-charges. All plans priced in INR.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
-          {/* Free Explorer */}
-          <div className="p-8 rounded-2xl glass-card bg-slate-900 border border-slate-800 flex flex-col justify-between">
-            <div className="space-y-4">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Free Explorer</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">₹0</span>
-                <span className="text-xs text-slate-400">/ forever</span>
-              </div>
-              <p className="text-xs text-slate-400">Ideal for students exploring initial options and trying the diagnostic.</p>
-              
-              <ul className="space-y-2.5 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Student profile & academic tracker</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Basic assessment sample trial</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Top 3 career recommendations</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Public college & exam directory</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-8">
-              <Link
-                to="/register"
-                className="w-full block text-center py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
+      {/* Careers from the library */}
+      {careers.length > 0 && (
+        <section className="page flex flex-col gap-10 py-24">
+          <SectionHeader
+            eyebrow="Explore"
+            title="Careers students are reading about"
+            action={
+              <form
+                role="search"
+                onSubmit={(e) => { e.preventDefault(); navigate(`/careers${query.trim() ? `?search=${encodeURIComponent(query.trim())}` : ''}`); }}
+                className="flex w-full max-w-md gap-2"
               >
-                Get Started Free
+                <label htmlFor="home-search" className="sr-only">Search careers</label>
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+                  <input id="home-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Doctor, pilot, CA, designer…" className="field-input pl-11" />
+                </div>
+                <Button type="submit">Search</Button>
+              </form>
+            }
+          />
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {careers.map((c) => (
+              <Link key={c.id} to={`/careers/${c.slug}`} className="card group flex flex-col gap-2.5 p-6 hover:border-royal-300">
+                <span className="text-[13px] font-bold uppercase tracking-[0.06em] text-saffron-700">{c.category}</span>
+                <span className="text-lg font-bold group-hover:text-royal-500">{c.title}</span>
+                <span className="line-clamp-2 text-[15px] leading-relaxed text-ink-2">{c.shortDescription}</span>
+                <span className="mt-auto pt-2 text-sm font-semibold text-ink-3">{formatLPA(c.salaryMinINR, c.salaryMaxINR)}</span>
               </Link>
-            </div>
+            ))}
           </div>
+        </section>
+      )}
 
-          {/* Premium Student */}
-          <div className="p-8 rounded-2xl glass-card bg-gradient-to-b from-slate-900 via-slate-900 to-brand-950/40 border-2 border-brand-500 shadow-2xl relative flex flex-col justify-between">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-brand-600 to-cyan-500 text-white font-bold text-[10px] tracking-wider uppercase shadow-md">
-              Most Popular in India
-            </div>
-
-            <div className="space-y-4">
-              <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Premium Student</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">₹999</span>
-                <span className="text-xs text-slate-400">/ annual</span>
-              </div>
-              <p className="text-xs text-slate-400">Complete career intelligence suite for Class 10 & 12 students.</p>
-
-              <ul className="space-y-2.5 text-xs text-slate-200 pt-4 border-t border-slate-800">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Full 40-question 16-D assessment</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Multi-factor compatibility for all 50+ careers</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Personalized 30-day & 5-year roadmap builder</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>AI Career Mentor chat guidance</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Downloadable High-Res PDF Career Dossier</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-8">
-              <button
-                onClick={() => onOpenCheckout ? onOpenCheckout('PREMIUM_STUDENT') : navigate('/pricing')}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg glow-blue transition-all"
-              >
-                Upgrade to Premium (₹999)
-              </button>
-            </div>
-          </div>
-
-          {/* Premium Plus / Family */}
-          <div className="p-8 rounded-2xl glass-card bg-slate-900 border border-slate-800 flex flex-col justify-between">
-            <div className="space-y-4">
-              <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Premium Plus & Family</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-white">₹2,499</span>
-                <span className="text-xs text-slate-400">/ annual</span>
-              </div>
-              <p className="text-xs text-slate-400">Holistic strategy with dedicated Parent Portal and cost planning.</p>
-
-              <ul className="space-y-2.5 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Everything in Premium Student</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>Dedicated Parent Dashboard with consent</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>4-Year Higher Education Cost Estimator</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  <span>20% Discount on certified counselor sessions</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-8">
-              <button
-                onClick={() => onOpenCheckout ? onOpenCheckout('PREMIUM_PLUS') : navigate('/pricing')}
-                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
-              >
-                Select Premium Plus
-              </button>
-            </div>
-          </div>
-
+      {/* Features */}
+      <section className={cn('page flex flex-col gap-12 pb-24', careers.length === 0 && 'pt-24')}>
+        <SectionHeader eyebrow="Everything in one place" title="Research that usually takes months, organised for you" />
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((f) => (
+            <Link key={f.title} to={f.to} className="card group flex flex-col gap-2.5 p-7 hover:border-royal-300">
+              <span className="text-[13px] font-bold uppercase tracking-[0.06em] text-saffron-700">{f.tag}</span>
+              <span className="text-xl font-bold">{f.title}</span>
+              <span className="leading-relaxed text-ink-2">{f.body}</span>
+              <span className="mt-auto pt-2 font-semibold text-royal-500 group-hover:text-royal-600">{f.link} →</span>
+            </Link>
+          ))}
         </div>
       </section>
 
-      {/* Frequently Asked Questions */}
-      <section className="py-20 bg-slate-900/30 border-t border-slate-800/80">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2">
-              Everything you need to know about our evidence-informed methodology.
-            </p>
+      {/* Parents */}
+      <section className="bg-night text-white">
+        <div className="page grid items-center gap-14 py-24 lg:grid-cols-2">
+          <div className="flex flex-col gap-5">
+            <div className="flex gap-2.5">
+              <Character who="sunita" size={72} />
+              <Character who="rajesh" mood="wave" size={72} />
+            </div>
+            <p className="text-sm font-bold uppercase tracking-[0.08em] text-saffron-300">For parents</p>
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-[44px] sm:leading-[1.1]">Be part of the decision, with the facts in front of you</h2>
+            <p className="text-lg leading-relaxed text-night-text">Link to your child’s profile with their consent. Read the same report, compare streams, and plan four years of fees, hostel and coaching costs.</p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              <Button to="/for-parents" variant="white">Explore the parent portal</Button>
+              <Button to="/privacy-policy" className="border border-night-3 bg-transparent text-white hover:bg-night-2">How consent works</Button>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            {faqs.map((faq, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden transition-colors"
-              >
-                <button
-                  onClick={() => setActiveFaq(activeFaq === i ? null : i)}
-                  className="w-full p-4 text-left flex items-center justify-between text-sm font-bold text-slate-200 hover:text-white"
-                >
-                  <span>{faq.q}</span>
-                  <ChevronRight
-                    className={`w-4 h-4 text-slate-400 transition-transform ${
-                      activeFaq === i ? 'rotate-90 text-cyan-400' : ''
-                    }`}
-                  />
-                </button>
-                {activeFaq === i && (
-                  <div className="px-4 pb-4 text-xs text-slate-400 leading-relaxed border-t border-slate-800/60 pt-3">
-                    {faq.a}
-                  </div>
-                )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[['Shared report', 'Strengths, matches and reasons — in plain language.'], ['Cost planner', 'Four-year estimates in ₹ for each path and city.'], ['Scholarships', 'CSSS, INSPIRE, Pragati and more, matched to eligibility.'], ['Talk to a counsellor', 'Book verified experts for a 1-on-1 family session.']].map(([t, b]) => (
+              <div key={t} className="flex flex-col gap-2 rounded-2xl border border-night-3 bg-night-2 p-6">
+                <span className="font-display text-xl font-bold">{t}</span>
+                <span className="text-[15px] leading-relaxed text-night-text">{b}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final Conversion Banner */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl p-8 sm:p-14 bg-gradient-to-r from-brand-900 via-blue-900 to-slate-900 border border-brand-500/30 shadow-2xl relative overflow-hidden text-center space-y-6">
-          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Ready to Build a Clear, Confident Future?
-          </h2>
-          <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto">
-            Join thousands of students and parents making evidence-backed education decisions with FuturePath AI.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <Link
-              to="/assessment"
-              className="px-8 py-3.5 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-sm shadow-xl transition-all"
-            >
-              Take Free Assessment
-            </Link>
-            <Link
-              to="/careers"
-              className="px-8 py-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700 font-bold text-sm transition-all"
-            >
-              Browse 50+ Careers
-            </Link>
+      {/* Promise */}
+      <section className="page grid gap-8 py-24 lg:grid-cols-[1fr_2fr]">
+        <div className="flex flex-col gap-3.5">
+          <p className="eyebrow">Our promise</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight sm:text-[40px] sm:leading-[1.12]">Honest guidance, not a sales funnel</h2>
+          <p className="text-[17px] leading-relaxed text-ink-2">Recommendations are possibilities to explore together — never guarantees of admission or jobs.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[['Explains every match', 'You see which strengths drove each recommendation.'], ['Cites its sources', 'Salary and exam data link to the source and the date checked.'], ['DPDP Act 2023 compliant', 'Minimal data, parental consent, no ad profiling.'], ['No coaching-centre spam', 'We never sell student contacts to third parties.']].map(([t, b]) => (
+            <div key={t} className="card-muted flex flex-col gap-2 p-6">
+              <span className="flex items-center gap-2 text-[17px] font-bold"><ShieldCheck className="h-5 w-5 text-leaf-600" aria-hidden="true" />{t}</span>
+              <span className="text-[15px] leading-relaxed text-ink-2">{b}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Pricing teaser */}
+      <section className="border-y border-line bg-mist">
+        <div className="page flex flex-col gap-10 py-24">
+          <SectionHeader title="Start free. Upgrade when you’re ready." action={<Link to="/pricing" className="link">Compare all plans →</Link>} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['Explorer', '₹0', '', 'Discovery test, top 3 matches, career library.'],
+              ['Career Report', '₹299', 'once', 'Every match with reasons, PDF for parents.'],
+              ['Premium', '₹999', '/ year', 'Personal plan, unlimited Dhruv, scholarships.'],
+              ['Family', '₹2,499', '/ year', 'Premium + parent portal + a counsellor session.'],
+            ].map(([name, price, per, body]) => {
+              const featured = name === 'Premium';
+              return (
+                <div key={name} className={cn('relative flex flex-col gap-2.5 rounded-2xl bg-white p-6', featured ? 'border-2 border-royal-500' : 'border border-line')}>
+                  {featured && <span className="absolute -top-3 left-6 rounded-full bg-royal-500 px-2.5 py-1 text-xs font-bold text-white">Most chosen</span>}
+                  <span className="text-[17px] font-bold">{name}</span>
+                  <span className="font-display text-4xl font-bold">{price} <span className="font-sans text-[15px] font-medium text-ink-3">{per}</span></span>
+                  <span className="text-[15px] leading-relaxed text-ink-2">{body}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-    </div>
+      {/* FAQ */}
+      <section className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-24 sm:px-6">
+        <h2 className="h-section text-center">Questions families ask</h2>
+        <div className="border-t border-line">
+          {FAQS.map(([q, a], i) => {
+            const open = faq === i;
+            return (
+              <div key={q} className="border-b border-line">
+                <h3>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setFaq(open ? -1 : i)}
+                    className="flex min-h-[64px] w-full items-center justify-between gap-4 py-5 text-left text-lg font-semibold"
+                  >
+                    {q}
+                    <ChevronDown className={cn('h-5 w-5 shrink-0 text-royal-500 transition-transform', open && 'rotate-180')} aria-hidden="true" />
+                  </button>
+                </h3>
+                {open && <p className="max-w-2xl pb-6 leading-relaxed text-ink-2">{a}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="page pb-24">
+        <div className="flex flex-wrap items-center justify-between gap-8 rounded-4xl bg-royal-500 px-8 py-14 text-white sm:px-12">
+          <div className="flex max-w-xl flex-col gap-3">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-[40px] sm:leading-[1.1]">Your next step takes 25 minutes</h2>
+            <p className="text-lg text-royal-100">Start the free discovery test today. Pause whenever you like.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <Button to="/start" size="lg" variant="white" className="text-royal-600">Start free test</Button>
+            <span className="hidden h-[136px] w-[136px] items-center justify-center rounded-full bg-white sm:flex"><Dhruv pose="cheer" size={120} decorative /></span>
+          </div>
+        </div>
+      </section>
+    </>
   );
 };

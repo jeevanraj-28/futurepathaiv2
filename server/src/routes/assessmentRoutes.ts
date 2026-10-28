@@ -232,6 +232,35 @@ router.get('/results', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 /**
+ * "This doesn't feel right?" — store why a student disagrees with their report
+ */
+router.post('/feedback', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const reasons = Array.isArray(req.body.reasons)
+      ? req.body.reasons.filter((r: unknown) => typeof r === 'string' && r.trim()).map((r: string) => r.trim().slice(0, 200)).slice(0, 8)
+      : [];
+    if (reasons.length === 0) {
+      res.status(400).json({ success: false, message: 'Choose at least one reason' });
+      return;
+    }
+    const student = await prisma.studentProfile.findUnique({
+      where: { userId: req.user?.id },
+      include: { assessmentAttempts: { orderBy: { startedAt: 'desc' }, take: 1, select: { id: true } } }
+    });
+    if (!student) {
+      res.status(404).json({ success: false, message: 'Student profile not found' });
+      return;
+    }
+    await prisma.assessmentFeedback.create({
+      data: { studentId: student.id, attemptId: student.assessmentAttempts[0]?.id, reasonsJson: JSON.stringify(reasons) }
+    });
+    res.json({ success: true, message: 'Thanks — this helps us improve your matches.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Could not save your feedback', error: err.message });
+  }
+});
+
+/**
  * Get assessment history
  */
 router.get('/history', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {

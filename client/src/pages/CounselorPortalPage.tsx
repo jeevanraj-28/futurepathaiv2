@@ -1,301 +1,219 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, Languages, Star, Video, X } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import {
-  User,
-  Award,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  IndianRupee,
-  Star,
-  Video,
-  ShieldCheck,
-  Loader2
-} from 'lucide-react';
+import { useAuth } from '../context/auth';
+import { Dhruv } from '../components/brand';
+import { Character } from '../components/Character';
+import { Alert, Badge, Button, Field, Modal, PageHeader, Skeleton, StateMessage } from '../components/ui';
+import { cn, formatINR } from '../lib/utils';
 
-export const CounselorPortalPage: React.FC = () => {
+const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Turn weekly slots like "Mon 16:00-17:00" into real dates over the next two weeks. */
+const upcomingSlots = (slots: string[]) => {
+  const out: Array<{ date: string; label: string; time: string }> = [];
+  const today = new Date();
+  for (let d = 1; d <= 14; d++) {
+    const day = new Date(today);
+    day.setDate(today.getDate() + d);
+    slots.forEach((s) => {
+      const [dow, time] = s.split(' ');
+      if (DAY[day.getDay()] === dow) {
+        const iso = day.toISOString().slice(0, 10);
+        out.push({
+          date: iso,
+          time: time.replace('-', ' - '),
+          label: `${day.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · ${time.replace('-', '–')}`,
+        });
+      }
+    });
+  }
+  return out;
+};
+
+type Child = { studentId: string; studentName: string };
+
+const BookingDialog: React.FC<{ counselor: any; linkedChildren: Child[]; onClose: () => void; onBooked: () => void }> = ({ counselor, linkedChildren, onClose, onBooked }) => {
+  const options = useMemo(() => upcomingSlots(counselor.availableSlots || []), [counselor]);
+  const [pick, setPick] = useState(0);
+  // parents book on behalf of a linked child; students book for themselves
+  const [childId, setChildId] = useState(linkedChildren[0]?.studentId || '');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<any>(null);
+
+  const book = async () => {
+    const slot = options[pick];
+    if (!slot) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await ApiService.bookCounselor({ counselorId: counselor.id, scheduledDate: slot.date, slotTime: slot.time, studentNotes: notes, studentId: childId || undefined });
+      if (res.success) { setDone(res.booking); onBooked(); }
+    } catch (err: any) {
+      setError(err.message || 'We couldn’t book that slot. Please try another.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Book a session with ${counselor.name}`} onClose={onClose}>
+      <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <h2 className="text-lg font-bold">Book a session</h2>
+        <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-mist"><X className="h-5 w-5" aria-hidden="true" /></button>
+      </div>
+      {done ? (
+        <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <Dhruv pose="celebrate" size={130} decorative />
+          <h3 className="font-display text-2xl font-bold">You’re booked!</h3>
+          <p className="text-ink-2">{done.scheduledDate} · {done.slotTime} with {counselor.name}</p>
+          <Button href={done.meetingLink} variant="secondary"><Video className="h-4 w-4" aria-hidden="true" />Meeting link</Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5 px-6 py-6">
+          <div className="flex items-center gap-3">
+            <Character who="ananya" size={52} animate={false} />
+            <div className="flex flex-col"><span className="font-bold">{counselor.name}</span><span className="text-sm text-ink-3">{formatINR(counselor.hourlyRateINR)} · 60 minutes · video call</span></div>
+          </div>
+          {linkedChildren.length > 1 && (
+            <Field label="Booking for" htmlFor="booking-child">
+              <select id="booking-child" value={childId} onChange={(e) => setChildId(e.target.value)} className="field-input">
+                {linkedChildren.map((c) => <option key={c.studentId} value={c.studentId}>{c.studentName}</option>)}
+              </select>
+            </Field>
+          )}
+          {linkedChildren.length === 1 && <p className="text-[15px] text-ink-2">Booking for <strong>{linkedChildren[0].studentName}</strong></p>}
+          {options.length === 0 ? (
+            <Alert tone="saffron">No open slots in the next two weeks. Please check back soon.</Alert>
+          ) : (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-[15px] font-semibold">Choose a time</legend>
+              <div className="grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2">
+                {options.map((o, i) => (
+                  <button key={o.date + o.time} type="button" role="radio" aria-checked={pick === i} onClick={() => setPick(i)} className={cn('min-h-[48px] rounded-xl px-3 text-left text-[15px] font-semibold', pick === i ? 'border-2 border-royal-500 bg-royal-50 text-royal-600' : 'border border-line-strong hover:border-royal-300')}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <Field label="What would you like to talk about? (optional)" htmlFor="booking-notes">
+            <textarea id="booking-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="field-input" placeholder="e.g. Choosing between PCM and PCMB" />
+          </Field>
+          {error && <Alert>{error}</Alert>}
+          <Button size="lg" onClick={book} loading={saving} disabled={!options.length}>Confirm booking</Button>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+export const CounselorPortalPage: React.FC<{ mode: 'marketplace' | 'counselor' }> = ({ mode }) => {
   const { user } = useAuth();
   const [counselors, setCounselors] = useState<any[]>([]);
-  const [myBookings, setMyBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [booking, setBooking] = useState<any>(null);
+  const [children, setChildren] = useState<Child[]>([]);
+  const isParent = user?.role === 'PARENT';
 
-  // Booking Modal State
-  const [bookingModalOpen, setBookingModalOpen] = useState(false);
-  const [selectedCounselor, setSelectedCounselor] = useState<any>(null);
-  const [slotDate, setSlotDate] = useState('2026-03-20');
-  const [slotTime, setSlotTime] = useState('16:00 - 17:00');
-  const [notes, setNotes] = useState('');
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
+  const load = useCallback(() =>
+    Promise.all([
+      ApiService.getCounselors().catch(() => ({ counselors: [] })),
+      ApiService.request<{ success: boolean; bookings: any[] }>('/counselors/my-bookings').catch(() => ({ bookings: [] })),
+      isParent ? ApiService.getParentOverview().catch(() => ({ linkedStudents: [] })) : Promise.resolve({ linkedStudents: [] }),
+    ])
+      .then(([c, b, p]: any) => {
+        setCounselors(c.counselors || []);
+        setBookings(b.bookings || []);
+        setChildren((p.linkedStudents || []).filter((s: any) => s.status === 'ACTIVE').map((s: any) => ({ studentId: s.studentId, studentName: s.studentName })));
+      })
+      .finally(() => setLoading(false)), [isParent]);
 
-  const fetchCounselorData = async () => {
-    try {
-      const [cRes, bRes] = await Promise.all([
-        ApiService.getCounselors(),
-        user ? ApiService.request<{ success: boolean; bookings: any[] }>('/counselors/my-bookings') : Promise.resolve({ success: true, bookings: [] })
-      ]);
-      if (cRes.success && cRes.counselors) setCounselors(cRes.counselors);
-      if (bRes.success && bRes.bookings) setMyBookings(bRes.bookings);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    fetchCounselorData();
-  }, [user]);
+  if (loading) return <div className="flex flex-col gap-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-64 rounded-3xl" /></div>;
 
-  const handleBook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCounselor) return;
-
-    setBookingLoading(true);
-    setBookingSuccess(null);
-    try {
-      const res = await ApiService.bookCounselor({
-        counselorId: selectedCounselor.id,
-        scheduledDate: slotDate,
-        slotTime,
-        studentNotes: notes
-      });
-
-      if (res.success) {
-        setBookingSuccess('Session successfully booked! Meeting link generated.');
-        await fetchCounselorData();
-        setTimeout(() => {
-          setBookingModalOpen(false);
-          setBookingSuccess(null);
-        }, 1500);
-      }
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setBookingLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (mode === 'counselor') {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        <p className="text-sm">Loading Certified Counselor Network...</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader leading={<Character who="ananya" size={60} />} title={`Welcome, ${user?.name?.split(',')[0]}`} subtitle="Your upcoming sessions with students and families." />
+        {bookings.length === 0 ? (
+          <div className="card"><StateMessage pose="relax" title="No sessions booked yet" body="When students book you, their sessions and notes appear here." /></div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {bookings.map((b) => (
+              <article key={b.id} className="card flex flex-wrap items-center gap-4 p-5">
+                <Character who="aarav" size={48} animate={false} />
+                <div className="flex flex-1 basis-[240px] flex-col gap-1">
+                  <span className="font-bold">{b.student?.user?.name || 'Student'}</span>
+                  <span className="text-sm text-ink-3">{b.scheduledDate} · {b.slotTime}</span>
+                  {b.studentNotes && <span className="text-[15px] text-ink-2">“{b.studentNotes}”</span>}
+                </div>
+                <Badge tone={b.status === 'CONFIRMED' ? 'leaf' : 'neutral'}>{b.status === 'CONFIRMED' ? 'Confirmed' : b.status}</Badge>
+                {b.meetingLink && <Button href={b.meetingLink} size="sm" variant="secondary"><Video className="h-4 w-4" aria-hidden="true" />Join</Button>}
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
+  const canBook = user?.role === 'STUDENT' || (isParent && children.length > 0);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        
-        {/* Header */}
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Vetted & Certified Practitioners</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            1-on-1 Career Counselor Network
-          </h1>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Connect with certified educational psychologists and career counselors for stream selection, college applications, and tailored roadmap review.
-          </p>
-        </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Talk to a counsellor" subtitle="Verified experts for stream choice, exams and college applications — one-on-one, by video." />
 
-        {/* Existing Scheduled Sessions */}
-        {myBookings.length > 0 && (
-          <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-cyan-400" />
-              <span>Your Scheduled Consultations ({myBookings.length})</span>
-            </h3>
+      {!canBook && <Alert tone="royal">{isParent ? 'Link to your child’s account first — once they approve, you can book sessions for them.' : 'Sessions are booked by students, or by parents for a linked child.'}</Alert>}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              {myBookings.map((b, i) => (
-                <div key={i} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white">Date: {b.scheduledDate}</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
-                      {b.status}
-                    </span>
-                  </div>
-                  <p className="text-slate-400">Time: {b.slotTime} (60 mins)</p>
-                  {b.meetingLink && (
-                    <a
-                      href={b.meetingLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-cyan-400 hover:underline pt-1 font-semibold"
-                    >
-                      <Video className="w-3.5 h-3.5" />
-                      <span>Join Secure Video Consultation</span>
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Counselor Profiles Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {counselors.map(c => (
-            <div
-              key={c.id}
-              className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-5 flex flex-col justify-between"
-            >
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-600 to-cyan-400 flex items-center justify-center font-bold text-white text-xl overflow-hidden shadow-md flex-shrink-0">
-                    {c.avatarUrl ? (
-                      <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" />
-                    ) : (
-                      c.name.charAt(0)
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-lg font-bold text-white">{c.name}</h3>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    </div>
-                    <p className="text-xs text-cyan-300 font-medium">{c.title}</p>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
-                      <span className="flex items-center gap-1 text-amber-400 font-semibold">
-                        <Star className="w-3.5 h-3.5 fill-amber-400" />
-                        <span>{c.rating}</span>
-                      </span>
-                      <span>•</span>
-                      <span>{c.experienceYears} Years Exp</span>
-                      <span>•</span>
-                      <span>Languages: {c.languages?.join(', ')}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed font-normal">
-                  {c.bio}
-                </p>
-
-                {/* Specializations & Degrees */}
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[11px] mb-1">Specializations:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {c.specializations?.map((sp: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 text-[11px]">
-                          {sp}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 font-semibold block text-[11px] mb-1">Degrees & Credentials:</span>
-                    <p className="text-slate-300 text-[11px]">{c.degrees?.join(' • ')}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-slate-400 block">Session Fee (60 mins)</span>
-                  <span className="text-lg font-bold text-white">₹{c.hourlyRateINR}</span>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setSelectedCounselor(c);
-                    setBookingModalOpen(true);
-                  }}
-                  className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-colors"
-                >
-                  Book Consultation
-                </button>
-              </div>
+      {bookings.length > 0 && (
+        <section aria-labelledby="mine-title" className="card flex flex-col gap-3 p-6">
+          <h2 id="mine-title" className="text-lg font-bold">Your sessions</h2>
+          {bookings.map((b) => (
+            <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-mist px-4 py-3">
+              <span className="flex items-center gap-2 font-semibold"><CalendarDays className="h-4 w-4 text-royal-500" aria-hidden="true" />{b.scheduledDate} · {b.slotTime} · {b.counselor?.user?.name}{isParent && b.student?.user?.name ? ` · for ${b.student.user.name}` : ''}</span>
+              {b.meetingLink && <a href={b.meetingLink} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1.5"><Video className="h-4 w-4" aria-hidden="true" />Join</a>}
             </div>
           ))}
-        </div>
+        </section>
+      )}
 
-      </div>
-
-      {/* Booking Dialog */}
-      {bookingModalOpen && selectedCounselor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="w-full max-w-lg p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-700 shadow-2xl space-y-5">
-            <div className="space-y-1">
-              <h3 className="text-lg font-bold text-white">Schedule 1-on-1 Consultation</h3>
-              <p className="text-xs text-slate-400">
-                With {selectedCounselor.name} ({selectedCounselor.title})
-              </p>
-            </div>
-
-            <form onSubmit={handleBook} className="space-y-4 text-xs">
-              <div>
-                <label className="text-slate-400 font-semibold block mb-1">Select Consultation Date:</label>
-                <input
-                  type="date"
-                  value={slotDate}
-                  onChange={(e) => setSlotDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-400 font-semibold block mb-1">Available Time Slot:</label>
-                <select
-                  value={slotTime}
-                  onChange={(e) => setSlotTime(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
-                >
-                  <option value="16:00 - 17:00">16:00 – 17:00 IST (Evening)</option>
-                  <option value="17:00 - 18:00">17:00 – 18:00 IST (Evening)</option>
-                  <option value="11:00 - 12:00">11:00 – 12:00 IST (Morning)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-slate-400 font-semibold block mb-1">Notes for the Counselor:</label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g. Discussing PCM vs Commerce options, reviewing JEE preparation roadmap..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
-                />
-              </div>
-
-              {bookingSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
-                  {bookingSuccess}
+      {counselors.length === 0 ? (
+        <div className="card"><StateMessage pose="think" title="No counsellors available right now" body="Please check back soon." /></div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {counselors.map((c) => (
+            <article key={c.id} className="card flex flex-col gap-4 p-6">
+              <div className="flex items-start gap-4">
+                <Character who="ananya" size={64} />
+                <div className="flex flex-1 flex-col gap-1">
+                  <h2 className="text-lg font-bold">{c.name}</h2>
+                  <p className="text-[15px] text-ink-2">{c.title}</p>
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-3">
+                    <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 fill-saffron-500 text-saffron-500" aria-hidden="true" /><strong className="text-ink">{c.rating}</strong> rating</span>
+                    <span>{c.experienceYears} years</span>
+                    {c.languages?.length > 0 && <span className="inline-flex items-center gap-1"><Languages className="h-4 w-4" aria-hidden="true" />{c.languages.join(', ')}</span>}
+                  </p>
                 </div>
-              )}
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                <span className="font-bold text-white text-sm">Fee: ₹{selectedCounselor.hourlyRateINR}</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBookingModalOpen(false)}
-                    className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={bookingLoading}
-                    className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5"
-                  >
-                    {bookingLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                    <span>Confirm & Book</span>
-                  </button>
-                </div>
+                <Badge tone="leaf">Verified</Badge>
               </div>
-            </form>
-          </div>
+              <p className="leading-relaxed text-ink-2">{c.bio}</p>
+              <div className="flex flex-wrap gap-2">{c.specializations?.map((s: string) => <Badge key={s}>{s}</Badge>)}</div>
+              {c.degrees?.length > 0 && <p className="text-sm text-ink-3">{c.degrees.join(' · ')}</p>}
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+                <span><span className="font-display text-2xl font-bold">{formatINR(c.hourlyRateINR)}</span> <span className="text-sm text-ink-3">per hour</span></span>
+                <Button onClick={() => setBooking(c)} disabled={!canBook}>See available times</Button>
+              </div>
+            </article>
+          ))}
         </div>
       )}
 
+      {booking && <BookingDialog counselor={booking} linkedChildren={isParent ? children : []} onClose={() => setBooking(null)} onBooked={load} />}
     </div>
   );
 };

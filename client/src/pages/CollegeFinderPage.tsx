@@ -1,168 +1,118 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Bookmark, BookmarkCheck, ExternalLink, MapPin, Search } from 'lucide-react';
 import { ApiService } from '../services/api';
-import { College } from '../types';
-import {
-  Building,
-  Search,
-  MapPin,
-  Award,
-  IndianRupee,
-  ExternalLink,
-  Bookmark,
-  GraduationCap
-} from 'lucide-react';
+import { useAuth } from '../context/auth';
+import type { College } from '../types';
+import { Alert, Badge, Button, Skeleton, StateMessage } from '../components/ui';
+import { PageFrame } from '../components/layout/AppLayout';
+import { formatINR } from '../lib/utils';
+
+const STATES = ['ALL', 'Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Rajasthan'];
+const FEE_CAPS = [
+  { value: '', label: 'Any fee' },
+  { value: '100000', label: 'Up to ₹1 lakh / yr' },
+  { value: '300000', label: 'Up to ₹3 lakh / yr' },
+  { value: '600000', label: 'Up to ₹6 lakh / yr' },
+];
 
 export const CollegeFinderPage: React.FC = () => {
+  const { user } = useAuth();
   const [colleges, setColleges] = useState<College[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selectedState, setSelectedState] = useState('ALL');
+  const [state, setState] = useState('ALL');
+  const [maxFee, setMaxFee] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const states = ['ALL', 'Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Rajasthan'];
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setLoading(true);
+      setError(false);
+      ApiService.getColleges({ search: search.trim() || undefined, state: state === 'ALL' ? undefined : state, maxFee: maxFee ? Number(maxFee) : undefined })
+        .then((res) => setColleges(res.colleges || []))
+        .catch(() => setError(true))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [search, state, maxFee]);
 
-  const fetchColleges = async () => {
-    setLoading(true);
+  const save = async (id: string) => {
+    if (user?.role !== 'STUDENT') { setNotice('Log in as a student to save colleges to your shortlist.'); return; }
     try {
-      const res = await ApiService.getColleges({
-        search: search || undefined,
-        state: selectedState
-      });
-      if (res.success && res.colleges) {
-        setColleges(res.colleges);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      const res = await ApiService.toggleSaveCollege(id);
+      setSaved((s) => ({ ...s, [id]: res.saved }));
+    } catch (err: any) {
+      setNotice(err.message || 'Could not save right now.');
     }
   };
 
-  useEffect(() => {
-    fetchColleges();
-  }, [selectedState]);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-cyan-400 text-xs font-semibold border border-brand-500/20">
-            <Building className="w-3.5 h-3.5" />
-            <span>Verified Institutions</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Indian College & University Finder
-          </h1>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Search premier institutions across India with verified NIRF rankings, fee structures in INR, admission entrance tests, and official links.
-          </p>
-        </div>
-
-        {/* Filters Bar */}
-        <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-4">
-          <form onSubmit={(e) => { e.preventDefault(); fetchColleges(); }} className="relative">
-            <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search by college name, city or admission exam (e.g. IIT Bombay, AIIMS, CUET)..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-28 py-3 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-cyan-400"
-            />
-            <button
-              type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-lg bg-brand-600 text-white font-bold text-xs"
-            >
-              Filter
-            </button>
-          </form>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-            <span className="text-slate-400 font-semibold">State:</span>
-            {states.map(st => (
-              <button
-                key={st}
-                onClick={() => setSelectedState(st)}
-                className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                  selectedState === st
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Results */}
-        {loading ? (
-          <div className="text-center py-20 text-slate-400 text-sm">Loading verified institutions...</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {colleges.map(col => (
-              <div
-                key={col.id}
-                className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      {col.nirfRank && (
-                        <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          NIRF Rank #{col.nirfRank}
-                        </span>
-                      )}
-                      <h3 className="text-lg font-bold text-white mt-1.5">{col.name}</h3>
-                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>{col.city}, {col.state} • {col.accreditation}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 text-xs text-slate-300">
-                    <span className="font-semibold text-slate-400">Featured Courses:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {col.courses?.map((c, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300">
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Annual Fee Estimate</span>
-                      <span className="font-bold text-emerald-400">
-                        ₹{(col.feeMinINR / 1000).toLocaleString('en-IN')}k – ₹{(col.feeMaxINR / 100000).toFixed(1)}L
-                      </span>
-                    </div>
-                    <span className="text-slate-300">
-                      Admission: <strong className="text-cyan-400">{col.admissionRoute}</strong>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">Verified: {col.verifiedDate}</span>
-                  <a
-                    href={col.websiteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                  >
-                    <span>Official Portal</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+    <PageFrame className="flex flex-col gap-7">
+      <div className="flex max-w-2xl flex-col gap-3">
+        <p className="eyebrow">Discover · Colleges</p>
+        <h1 className="h-display text-4xl sm:text-5xl">Find colleges</h1>
+        <p className="text-lg leading-relaxed text-ink-2">Verified institutions with NIRF rank, yearly fees and how to get in.</p>
       </div>
-    </div>
+
+      <div className="card grid gap-3 p-5 md:grid-cols-[1fr_200px_200px]">
+        <div className="relative">
+          <label htmlFor="college-search" className="sr-only">Search colleges</label>
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+          <input id="college-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, city or course" className="field-input pl-12" />
+        </div>
+        <label className="sr-only" htmlFor="college-state">State</label>
+        <select id="college-state" value={state} onChange={(e) => setState(e.target.value)} className="field-input">
+          {STATES.map((s) => <option key={s} value={s}>{s === 'ALL' ? 'All states' : s}</option>)}
+        </select>
+        <label className="sr-only" htmlFor="college-fee">Fee</label>
+        <select id="college-fee" value={maxFee} onChange={(e) => setMaxFee(e.target.value)} className="field-input">
+          {FEE_CAPS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+      </div>
+
+      {notice && <Alert tone="royal">{notice}</Alert>}
+
+      {loading ? (
+        <div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-48 rounded-3xl" />)}</div>
+      ) : error ? (
+        <div className="card"><StateMessage pose="think" title="Colleges didn’t load" body="Please check your connection and refresh." /></div>
+      ) : colleges.length === 0 ? (
+        <div className="card"><StateMessage pose="read" title="No colleges match" body="Try another state or a higher fee limit." action={<Button variant="secondary" onClick={() => { setSearch(''); setState('ALL'); setMaxFee(''); }}>Clear filters</Button>} /></div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {colleges.map((c) => (
+            <article key={c.id} className="card flex flex-col gap-4 p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1.5">
+                  {c.nirfRank ? <Badge tone="royal" className="self-start">NIRF #{c.nirfRank}</Badge> : null}
+                  <h2 className="text-lg font-bold leading-snug">{c.name}</h2>
+                  <span className="flex items-center gap-1.5 text-sm text-ink-3"><MapPin className="h-4 w-4" aria-hidden="true" />{c.city}, {c.state}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => save(c.id)}
+                  aria-pressed={!!saved[c.id]}
+                  aria-label={saved[c.id] ? `Remove ${c.name} from shortlist` : `Save ${c.name} to shortlist`}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line hover:bg-mist"
+                >
+                  {saved[c.id] ? <BookmarkCheck className="h-5 w-5 text-royal-500" aria-hidden="true" /> : <Bookmark className="h-5 w-5" aria-hidden="true" />}
+                </button>
+              </div>
+              <dl className="grid grid-cols-2 gap-3 text-[15px]">
+                <div><dt className="text-sm text-ink-3">Yearly fees</dt><dd className="font-semibold">{formatINR(c.feeMinINR)} – {formatINR(c.feeMaxINR)}</dd></div>
+                <div><dt className="text-sm text-ink-3">How to get in</dt><dd className="font-semibold">{c.admissionRoute}</dd></div>
+              </dl>
+              {c.courses?.length > 0 && <div className="flex flex-wrap gap-2">{c.courses.slice(0, 5).map((x) => <Badge key={x}>{x}</Badge>)}</div>}
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-sm text-ink-3">
+                <span>{c.accreditation} · checked {c.verifiedDate}</span>
+                {c.websiteUrl && <a href={c.websiteUrl} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1">Official site<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </PageFrame>
   );
 };

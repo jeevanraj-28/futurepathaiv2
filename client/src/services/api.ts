@@ -61,6 +61,17 @@ export class ApiService {
     });
   }
 
+  public static async getInvite(token: string) {
+    return this.request<{ success: boolean; invite: { name: string; email: string; schoolName: string | null } }>(`/auth/invite/${encodeURIComponent(token)}`);
+  }
+
+  public static async acceptInvite(token: string, password: string) {
+    return this.request<{ success: boolean; token: string; user: any; subscription: any }>('/auth/accept-invite', {
+      method: 'POST',
+      body: JSON.stringify({ token, password })
+    });
+  }
+
   public static async getMe() {
     return this.request<{ success: boolean; user: any; subscription: any }>('/auth/me');
   }
@@ -79,6 +90,15 @@ export class ApiService {
 
   public static async getStudentDashboard() {
     return this.request<{ success: boolean; dashboard: any }>('/student/dashboard');
+  }
+
+  public static async getParentLinks() {
+    return this.request<{ success: boolean; links: Array<{ id: string; status: string; relationship: string; parentName: string; parentEmail: string; createdAt: string }> }>('/student/parent-links');
+  }
+
+  /** Approve, decline or remove a parent's access to the student's report. */
+  public static async updateParentLink(linkId: string, action: 'approve' | 'reject' | 'remove') {
+    return this.request<{ success: boolean; status: string }>(`/student/parent-links/${linkId}/${action}`, { method: 'POST' });
   }
 
   public static async toggleSaveCareer(careerId: string) {
@@ -109,6 +129,13 @@ export class ApiService {
     }>('/assessment/submit', {
       method: 'POST',
       body: JSON.stringify({ responses })
+    });
+  }
+
+  public static async sendAssessmentFeedback(reasons: string[]) {
+    return this.request<{ success: boolean; message: string }>('/assessment/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ reasons })
     });
   }
 

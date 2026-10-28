@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { computeWeeklyStreak } from '../services/streakService';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
       include: {
         savedCareers: { include: { career: true } },
         savedColleges: { include: { college: true } },
-        parentLinks: { include: { parent: { include: { user: true } } } }
+        parentLinks: { include: { parent: { include: { user: { select: { name: true, email: true } } } } } }
       }
     });
 
@@ -164,8 +165,19 @@ router.get('/dashboard', authenticateToken, async (req: AuthRequest, res: Respon
       }
     }
 
+    const completions = await prisma.taskCompletion.findMany({
+      where: { studentId: student.id },
+      select: { completedAt: true }
+    });
+    const streak = computeWeeklyStreak(completions.map(c => c.completedAt));
+    const pendingParentRequests = await prisma.parentStudentLink.count({
+      where: { studentId: student.id, status: 'PENDING' }
+    });
+
     // Key statistics and stream recommendations
     const dashboardData = {
+      ...streak,
+      pendingParentRequests,
       studentName: req.user?.name,
       currentClass: student.currentClass,
       board: student.board,
@@ -282,6 +294,77 @@ router.post('/save-college/:collegeId', authenticateToken, async (req: AuthReque
     }
   } catch (err: any) {
     res.status(500).json({ success: false, message: 'Failed to update saved college', error: err.message });
+  }
+});
+
+/**
+ * Parent link requests and approved links for the signed-in student
+ */
+router.get('/parent-links', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const student = await prisma.studentProfile.findUnique({ where: { userId: req.user?.id } });
+    if (!student) {
+      res.status(404).json({ success: false, message: 'Student profile not found' });
+      return;
+    }
+    const links = await prisma.parentStudentLink.findMany({
+      where: { studentId: student.id, status: { not: 'REVOKED' } },
+      include: { parent: { include: { user: { select: { name: true, email: true } } } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({
+      success: true,
+      links: links.map(l => ({
+        id: l.id,
+        status: l.status,
+        relationship: l.relationship,
+        parentName: l.parent.user.name,
+        parentEmail: l.parent.user.email,
+        createdAt: l.createdAt
+      }))
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Failed to fetch parent links', error: err.message });
+  }
+});
+
+/**
+ * Approve, decline or remove a parent's access. Only the student can do this.
+ */
+router.post('/parent-links/:id/:action', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, action } = req.params;
+    if (!['approve', 'reject', 'remove'].includes(action)) {
+      res.status(400).json({ success: false, message: 'Action must be approve, reject or remove' });
+      return;
+    }
+    const student = await prisma.studentProfile.findUnique({ where: { userId: req.user?.id } });
+    const link = student ? await prisma.parentStudentLink.findFirst({ where: { id, studentId: student.id } }) : null;
+    if (!link) {
+      res.status(404).json({ success: false, message: 'Link not found' });
+      return;
+    }
+    if (action === 'approve' && link.status !== 'PENDING') {
+      res.status(400).json({ success: false, message: 'Only pending requests can be approved' });
+      return;
+    }
+
+    const approved = action === 'approve';
+    const updated = await prisma.parentStudentLink.update({
+      where: { id },
+      data: { status: approved ? 'ACTIVE' : 'REVOKED', consentGiven: approved }
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user?.id,
+        action: approved ? 'PARENT_LINK_APPROVED' : 'PARENT_LINK_REVOKED',
+        resource: 'CONSENT',
+        details: JSON.stringify({ linkId: id })
+      }
+    });
+    res.json({ success: true, status: updated.status });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Failed to update parent link', error: err.message });
   }
 });
 

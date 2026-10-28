@@ -43,13 +43,21 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
  */
 router.post('/book', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await prisma.studentProfile.findUnique({ where: { userId: req.user?.id } });
+    const { counselorId, scheduledDate, slotTime, studentNotes, studentId: forStudentId } = req.body;
+
+    // Students book for themselves; parents book for a child whose link the child approved.
+    let student = await prisma.studentProfile.findUnique({ where: { userId: req.user?.id } });
+    if (!student && req.user?.role === 'PARENT' && forStudentId) {
+      const link = await prisma.parentStudentLink.findFirst({
+        where: { studentId: forStudentId, status: 'ACTIVE', parent: { userId: req.user.id } }
+      });
+      if (link) student = await prisma.studentProfile.findUnique({ where: { id: forStudentId } });
+    }
     if (!student) {
-      res.status(404).json({ success: false, message: 'Student profile required to book a session' });
+      res.status(404).json({ success: false, message: 'Choose a linked student to book a session for' });
       return;
     }
 
-    const { counselorId, scheduledDate, slotTime, studentNotes } = req.body;
     if (!counselorId || !scheduledDate || !slotTime) {
       res.status(400).json({ success: false, message: 'Counselor ID, date, and slot time are required' });
       return;
@@ -105,13 +113,22 @@ router.get('/my-bookings', authenticateToken, async (req: AuthRequest, res: Resp
     if (student) {
       bookings = await prisma.counselorBooking.findMany({
         where: { studentId: student.id },
-        include: { counselor: { include: { user: true } } },
+        include: { counselor: { include: { user: { select: { name: true } } } } },
+        orderBy: { scheduledDate: 'asc' }
+      });
+    } else if (req.user?.role === 'PARENT') {
+      bookings = await prisma.counselorBooking.findMany({
+        where: { student: { parentLinks: { some: { status: 'ACTIVE', parent: { userId: req.user.id } } } } },
+        include: {
+          counselor: { include: { user: { select: { name: true } } } },
+          student: { include: { user: { select: { name: true } } } }
+        },
         orderBy: { scheduledDate: 'asc' }
       });
     } else if (counselor) {
       bookings = await prisma.counselorBooking.findMany({
         where: { counselorId: counselor.id },
-        include: { student: { include: { user: true } } },
+        include: { student: { include: { user: { select: { name: true, email: true } } } } },
         orderBy: { scheduledDate: 'asc' }
       });
     }

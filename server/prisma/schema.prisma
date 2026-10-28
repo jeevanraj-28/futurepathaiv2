@@ -409,3 +409,39 @@ model AuditLog {
   ipAddress  String?  @default("127.0.0.1")
   createdAt  DateTime @default(now())
 }
+
+// One row each time a student ticks off a roadmap task; drives the weekly streak.
+model TaskCompletion {
+  id             String   @id @default(uuid())
+  studentId      String
+  roadmapId      String
+  milestoneIndex Int
+  taskIndex      Int
+  completedAt    DateTime @default(now())
+
+  @@index([studentId, completedAt])
+}
+
+// Invitation created when a school imports a student; the student sets a password with the token.
+model StudentInvite {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  schoolId  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// "This doesn't feel right?" responses from the career report.
+model AssessmentFeedback {
+  id        String   @id @default(uuid())
+  studentId String
+  attemptId String?
+  reasonsJson String
+  createdAt DateTime @default(now())
+
+  @@index([studentId])
+}

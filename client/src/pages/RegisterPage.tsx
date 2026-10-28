@@ -1,183 +1,105 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import {
-  Compass,
-  Lock,
-  Mail,
-  User,
-  GraduationCap,
-  ShieldCheck,
-  Loader2,
-  AlertCircle
-} from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/auth';
+import { AuthShell } from '../components/layout/AuthShell';
+import { Alert, Button, ChoiceTile, Field } from '../components/ui';
+import { Character } from '../components/Character';
+import { homePathForRole } from '../components/layout/nav';
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'STUDENT' | 'PARENT'>('STUDENT');
-  const [currentClass, setCurrentClass] = useState('CLASS_10');
-  const [loading, setLoading] = useState(false);
+  const [params] = useSearchParams();
+  const next = params.get('next');
+  const [role, setRole] = useState<'STUDENT' | 'PARENT'>(params.get('role') === 'PARENT' ? 'PARENT' : 'STUDENT');
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', currentClass: 'CLASS_10' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = 'Enter your name.';
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = 'Enter a valid email address.';
+    if (form.password.length < 8) e.password = 'Use at least 8 characters.';
+    if (form.phone && !/^\d{10}$/.test(form.phone.replace(/\s/g, ''))) e.phone = 'Enter a 10-digit mobile number.';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    if (!validate()) return;
+    setLoading(true);
     try {
       await register({
-        name,
-        email,
-        password,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        phone: form.phone ? `+91${form.phone.replace(/\s/g, '')}` : undefined,
         role,
-        currentClass
+        currentClass: role === 'STUDENT' ? form.currentClass : undefined,
       });
-      navigate(role === 'STUDENT' ? '/onboarding' : '/parent-portal');
+      navigate(next || (role === 'STUDENT' ? '/start' : homePathForRole(role)), { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      setError(err.message || 'Could not create your account.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 p-8 rounded-2xl glass-panel bg-slate-900 border border-slate-800 shadow-2xl">
-        
-        <div className="text-center space-y-2">
-          <Link to="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-cyan-400 p-0.5">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Compass className="w-5 h-5 text-cyan-400" />
-              </div>
-            </div>
-          </Link>
-          <h2 className="text-2xl font-black text-white tracking-tight">Create FuturePath AI Account</h2>
-          <p className="text-xs text-slate-400">Begin evidence-backed career exploration for Classes 10 & 12</p>
+    <AuthShell pose="backpack" panelTitle="Let’s find what fits you" panelBody="Create a free account to save your results, your plan and your saved careers.">
+      <form onSubmit={submit} noValidate className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-display text-[32px] font-bold tracking-tight">Create your account</h1>
+          <p className="text-ink-2">Already have one? <Link to="/login" className="link">Log in</Link></p>
         </div>
-
-        {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
+        {error && <Alert>{error}</Alert>}
+        <fieldset className="flex flex-col gap-3">
+          <legend className="mb-3 text-[15px] font-semibold">I am a</legend>
+          <div className="grid grid-cols-2 gap-3">
+            <ChoiceTile selected={role === 'STUDENT'} onClick={() => setRole('STUDENT')} className="flex items-center gap-3 p-3">
+              <Character who="aarav" size={40} animate={false} /><span className="font-semibold">Student</span>
+            </ChoiceTile>
+            <ChoiceTile selected={role === 'PARENT'} onClick={() => setRole('PARENT')} className="flex items-center gap-3 p-3">
+              <Character who="sunita" size={40} animate={false} /><span className="font-semibold">Parent</span>
+            </ChoiceTile>
           </div>
+        </fieldset>
+        <Field label="Full name" htmlFor="reg-name" error={errors.name}>
+          <input id="reg-name" autoComplete="name" value={form.name} onChange={set('name')} className="field-input" aria-invalid={!!errors.name} />
+        </Field>
+        <Field label="Email" htmlFor="reg-email" error={errors.email}>
+          <input id="reg-email" type="email" autoComplete="email" value={form.email} onChange={set('email')} className="field-input" aria-invalid={!!errors.email} />
+        </Field>
+        <Field label="Password" htmlFor="reg-password" error={errors.password} hint="At least 8 characters.">
+          <input id="reg-password" type="password" autoComplete="new-password" value={form.password} onChange={set('password')} className="field-input" aria-invalid={!!errors.password} />
+        </Field>
+        <Field label="Mobile number (optional)" htmlFor="reg-phone" error={errors.phone} hint="For exam and deadline reminders. No spam calls.">
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-[10px] border border-line-strong bg-mist px-3.5 font-semibold">+91</span>
+            <input id="reg-phone" type="tel" inputMode="numeric" autoComplete="tel-national" value={form.phone} onChange={set('phone')} className="field-input" aria-invalid={!!errors.phone} />
+          </div>
+        </Field>
+        {role === 'STUDENT' && (
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-3 text-[15px] font-semibold">Class</legend>
+            <div className="grid grid-cols-2 gap-3">
+              {[['CLASS_10', 'Class 9–10'], ['CLASS_12', 'Class 11–12']].map(([v, l]) => (
+                <ChoiceTile key={v} selected={form.currentClass === v} onClick={() => setForm((f) => ({ ...f, currentClass: v }))} className="px-4 font-semibold">{l}</ChoiceTile>
+              ))}
+            </div>
+          </fieldset>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          
-          {/* Role selector */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setRole('STUDENT')}
-              className={`p-2.5 rounded-xl border text-center font-bold text-xs transition-all ${
-                role === 'STUDENT'
-                  ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
-                  : 'border-slate-800 bg-slate-950 text-slate-400'
-              }`}
-            >
-              I am a Student
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('PARENT')}
-              className={`p-2.5 rounded-xl border text-center font-bold text-xs transition-all ${
-                role === 'PARENT'
-                  ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
-                  : 'border-slate-800 bg-slate-950 text-slate-400'
-              }`}
-            >
-              I am a Parent
-            </button>
-          </div>
-
-          <div>
-            <label className="text-slate-300 font-semibold block mb-1">Full Name:</label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                required
-                placeholder="Aarav Sharma"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-slate-300 font-semibold block mb-1">Email Address:</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                required
-                placeholder="aarav@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-slate-300 font-semibold block mb-1">Password:</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="password"
-                required
-                minLength={6}
-                placeholder="At least 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-              />
-            </div>
-          </div>
-
-          {role === 'STUDENT' && (
-            <div>
-              <label className="text-slate-300 font-semibold block mb-1">Current Class Stage:</label>
-              <select
-                value={currentClass}
-                onChange={(e) => setCurrentClass(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200"
-              >
-                <option value="CLASS_10">Class 10 (Deciding Stream)</option>
-                <option value="CLASS_12">Class 12 (Deciding Degree & Entrance Exam)</option>
-              </select>
-            </div>
-          )}
-
-          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span>DPDP Act 2023 Child Privacy Compliant. Free Explorer plan activated automatically.</span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            <span>Create Free Account</span>
-          </button>
-        </form>
-
-        <p className="text-center text-xs text-slate-400">
-          Already registered?{' '}
-          <Link to="/login" className="text-cyan-400 font-semibold hover:underline">
-            Sign In
-          </Link>
+        <Button type="submit" size="lg" loading={loading}>Create account</Button>
+        <p className="text-sm leading-relaxed text-ink-3">
+          By continuing you agree to our <Link to="/terms" className="link">terms</Link> and <Link to="/privacy-policy" className="link">privacy policy</Link>. Students under 18 need a parent’s consent before results are shared.
         </p>
-
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 };

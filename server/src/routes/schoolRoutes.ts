@@ -1,13 +1,27 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { authenticateToken, AuthRequest, requireRoles } from '../middleware/auth';
+import { parseReadiness, streamDistribution as streamDistributionOf } from '../services/schoolInsights';
+import { validateRoster } from '../services/rosterImport';
+
+const INVITE_DAYS = 14;
+
+/** The school this staff member belongs to; platform admins and demo admins see the demo school. */
+const findSchoolIdForUser = async (userId?: string) => {
+  const own = await prisma.school.findFirst({ where: { memberships: { some: { userId } } }, select: { id: true } });
+  if (own) return own.id;
+  const demo = await prisma.school.findFirst({ where: { code: 'DPS-PUNE-01' }, select: { id: true } });
+  return demo?.id || null;
+};
 
 const router = Router();
 
 /**
  * Get School Organization Dashboard & Aggregated Analytics
  */
-router.get('/dashboard', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/dashboard', authenticateToken, requireRoles(['SCHOOL_ADMIN', 'PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // Find school linked to this user (or fallback to demo school if school admin)
     let school = await prisma.school.findFirst({
@@ -66,13 +80,10 @@ router.get('/dashboard', authenticateToken, async (req: AuthRequest, res: Respon
     const completedAssessments = school.enrollments.filter(e => e.student.assessmentAttempts.length > 0).length;
     const readinessRate = totalStudents > 0 ? Math.round((completedAssessments / totalStudents) * 100) : 85;
 
-    // Stream distribution simulation
-    const streamDistribution = [
-      { stream: 'Science (PCM)', count: 42, percentage: 42 },
-      { stream: 'Commerce with Math', count: 28, percentage: 28 },
-      { stream: 'Science (PCB)', count: 18, percentage: 18 },
-      { stream: 'Humanities & Design', count: 12, percentage: 12 }
-    ];
+    // Real stream interest: each tested student's strongest stream
+    const streamDistribution = streamDistributionOf(
+      school.enrollments.map(e => parseReadiness(e.student.assessmentAttempts[0]?.readinessProfile))
+    );
 
     res.json({
       success: true,
@@ -100,7 +111,7 @@ router.get('/dashboard', authenticateToken, async (req: AuthRequest, res: Respon
 /**
  * Get Roster of Enrolled Students
  */
-router.get('/students', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/students', authenticateToken, requireRoles(['SCHOOL_ADMIN', 'PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const school = await prisma.school.findFirst({
       where: {
@@ -165,15 +176,82 @@ router.get('/students', authenticateToken, async (req: AuthRequest, res: Respons
 /**
  * Bulk Import Students via CSV (Simulation)
  */
-router.post('/bulk-import', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/bulk-import', authenticateToken, requireRoles(['SCHOOL_ADMIN', 'PLATFORM_ADMIN']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { studentsList } = req.body; // array of { name, email, rollNumber, currentClass }
-    const importedCount = Array.isArray(studentsList) && studentsList.length > 0 ? studentsList.length : 25;
+    const { valid, errors } = validateRoster(req.body.studentsList);
+    const schoolId = await findSchoolIdForUser(req.user?.id);
+    if (!schoolId) {
+      res.status(404).json({ success: false, message: 'School organization not found' });
+      return;
+    }
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      include: { classGroups: true, _count: { select: { enrollments: true } } }
+    });
+    if (!school) {
+      res.status(404).json({ success: false, message: 'School organization not found' });
+      return;
+    }
+
+    let seatsLeft = Math.max(0, school.maxStudents - school._count.enrollments);
+    const created: Array<{ name: string; email: string; inviteToken: string }> = [];
+    const skipped: Array<{ email: string; reason: string }> = [];
+
+    for (const row of valid) {
+      if (seatsLeft <= 0) {
+        skipped.push({ email: row.email, reason: 'No seats left on your plan' });
+        continue;
+      }
+      const existing = await prisma.user.findUnique({ where: { email: row.email } });
+      if (existing) {
+        skipped.push({ email: row.email, reason: 'An account with this email already exists' });
+        continue;
+      }
+      // match a batch whose name mentions the class, e.g. "Class 10-A" for CLASS_10
+      const classDigits = row.currentClass === 'CLASS_12' ? '12' : '10';
+      const classGroup = school.classGroups.find(g => g.name.includes(classDigits));
+      // the account can't be logged into until the student sets a password with the invite
+      const unusablePassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      const token = crypto.randomBytes(24).toString('hex');
+
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: row.email,
+            name: row.name,
+            passwordHash: unusablePassword,
+            role: 'STUDENT',
+            studentProfile: { create: { currentClass: row.currentClass, board: school.board, completionScore: 25 } }
+          },
+          include: { studentProfile: true }
+        });
+        await tx.studentEnrollment.create({
+          data: { studentId: user.studentProfile!.id, schoolId: school.id, classGroupId: classGroup?.id, rollNumber: row.rollNumber }
+        });
+        await tx.studentInvite.create({
+          data: { token, userId: user.id, schoolId: school.id, expiresAt: new Date(Date.now() + INVITE_DAYS * 24 * 60 * 60 * 1000) }
+        });
+      });
+      seatsLeft -= 1;
+      created.push({ name: row.name, email: row.email, inviteToken: token });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user?.id,
+        action: 'ROSTER_IMPORTED',
+        resource: 'SCHOOL',
+        details: JSON.stringify({ schoolId: school.id, created: created.length, skipped: skipped.length, errors: errors.length })
+      }
+    });
 
     res.json({
       success: true,
-      message: `Successfully processed CSV import! ${importedCount} student accounts registered and assigned invitation passes.`,
-      importedCount
+      message: `${created.length} student${created.length === 1 ? '' : 's'} added. ${skipped.length} skipped, ${errors.length} with errors.`,
+      importedCount: created.length,
+      created,
+      skipped,
+      errors
     });
   } catch (err: any) {
     res.status(500).json({ success: false, message: 'Failed to import CSV roster', error: err.message });

@@ -1,282 +1,166 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Compass,
-  CheckCircle2,
-  ShieldCheck,
-  Building,
-  Users,
-  Award,
-  HelpCircle,
-  Mail,
-  Phone,
-  MapPin,
-  Lock,
-  ArrowRight
-} from 'lucide-react';
+import { Mail, Phone } from 'lucide-react';
+import { Dhruv, type DhruvPose } from '../components/brand';
+import { Character, type CharacterId } from '../components/Character';
+import { Button } from '../components/ui';
+
+/* ---------- Shared building blocks ---------- */
+
+const Hero: React.FC<{ eyebrow: string; title: string; body: string; pose?: DhruvPose; who?: CharacterId[]; cta?: React.ReactNode }> = ({ eyebrow, title, body, pose, who, cta }) => (
+  <section className="border-b border-line bg-mist">
+    <div className="page flex flex-wrap items-center justify-between gap-10 py-16 sm:py-20">
+      <div className="flex max-w-2xl flex-col gap-5">
+        <p className="eyebrow">{eyebrow}</p>
+        <h1 className="h-display text-4xl sm:text-[52px]">{title}</h1>
+        <p className="text-lg leading-relaxed text-ink-2">{body}</p>
+        {cta && <div className="mt-2 flex flex-wrap gap-3">{cta}</div>}
+      </div>
+      {who ? (
+        <div className="flex gap-3">{who.map((w, i) => <Character key={w} who={w} mood={i === 0 ? 'wave' : 'happy'} size={110} />)}</div>
+      ) : pose ? <Dhruv pose={pose} size={180} bob decorative /> : null}
+    </div>
+  </section>
+);
+
+const Cards: React.FC<{ items: Array<[string, string]> }> = ({ items }) => (
+  <section className="page grid gap-5 py-16 md:grid-cols-2">
+    {items.map(([title, body], i) => (
+      <div key={title} className="card flex flex-col gap-3 p-7">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-royal-50 font-display text-xl font-extrabold text-royal-500">{i + 1}</span>
+        <h2 className="text-xl font-bold">{title}</h2>
+        <p className="leading-relaxed text-ink-2">{body}</p>
+      </div>
+    ))}
+  </section>
+);
+
+const Legal: React.FC<{ title: string; updated: string; sections: Array<[string, string]> }> = ({ title, updated, sections }) => (
+  <article className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-16 sm:px-6">
+    <h1 className="h-display text-4xl">{title}</h1>
+    <p className="text-ink-3">{updated}</p>
+    {sections.map(([h, p]) => (
+      <section key={h} className="flex flex-col gap-2">
+        <h2 className="text-xl font-bold">{h}</h2>
+        <p className="leading-relaxed text-ink-2">{p}</p>
+      </section>
+    ))}
+    <p className="text-ink-2">Questions? Email <a href="mailto:support@futurepath.ai" className="link">support@futurepath.ai</a>.</p>
+  </article>
+);
+
+/* ---------- Pages ---------- */
 
 export const HowItWorksPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-12">
-      <div className="space-y-3">
-        <span className="px-3 py-1 rounded-full bg-brand-500/10 text-cyan-400 text-xs font-semibold border border-brand-500/20">
-          Methodology
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">How FuturePath AI Works</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          From guesswork to evidence: a 4-phase structured journey designed by educational psychologists and data engineers for Classes 10 & 12 in India.
-        </p>
-      </div>
-
-      <div className="space-y-8">
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm">1</span>
-            <h3 className="text-lg font-bold text-white">Multi-Dimensional 16-D Assessment</h3>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Students answer 40 scenario-based questions covering numerical reasoning, spatial visualization, deductive logic, scientific curiosity, risk tolerance, and work values. Results are computed independently across dimensions rather than compressed into a single uninformative score.
-          </p>
-        </div>
-
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-cyan-600 text-white font-bold flex items-center justify-center text-sm">2</span>
-            <h3 className="text-lg font-bold text-white">Explainable Matching & Stream Diagnostics</h3>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Our deterministic recommendation engine evaluates compatibility against 50+ curated careers. For each career, we show why it matches, which school subjects apply, what skills need further development, and alternative entry routes.
-          </p>
-        </div>
-
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center text-sm">3</span>
-            <h3 className="text-lg font-bold text-white">30-Day, 90-Day & 5-Year Roadmap Builder</h3>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Convert recommendations into bite-sized actionable tasks. Track board syllabus priorities, reference book reading, Olympiad trials, entrance exam dates, and portfolio development milestones.
-          </p>
-        </div>
-
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-amber-600 text-white font-bold flex items-center justify-center text-sm">4</span>
-            <h3 className="text-lg font-bold text-white">Family & Counselor Collaboration</h3>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Parents access cost-planning estimators and discussion guides to support, rather than dictate, career trajectories. Certified career counselors are available for personalized 1-on-1 strategy sessions.
-          </p>
-        </div>
-      </div>
-
-      <div className="text-center pt-4">
-        <Link to="/assessment" className="px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue">
-          Experience the 16-D Assessment
-        </Link>
-      </div>
-    </div>
-  </div>
+  <>
+    <Hero eyebrow="How it works" title="From “I don’t know” to a plan you can act on" body="Four steps, built with counsellors and families. Start free, without signing up." pose="backpack" cta={<Button to="/start" size="lg">Start free test</Button>} />
+    <Cards items={[
+      ['Take the discovery test', '40 questions across 16 areas: reasoning, interests, values and working style. About 25 minutes, saved on your device as you go.'],
+      ['Read your report', 'Your strengths in plain words, the stream that fits, and career matches — each with the reasons, salary ranges and exams.'],
+      ['Turn it into a plan', 'Pick a career and get tasks for the next 30 days, 90 days and year, from entrance exam prep to scholarships.'],
+      ['Decide together', 'Share the report with parents on WhatsApp, ask Dhruv any time, and book a verified counsellor when you want a person.'],
+    ]} />
+  </>
 );
 
 export const ForParentsPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-10">
-      <div className="space-y-3">
-        <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold border border-amber-500/20">
-          For Parents
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">Supporting Your Child's Ambitions</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          How to replace anxiety and peer comparison with evidence-backed discussions, realistic higher education cost planning, and certified guidance.
-        </p>
+  <>
+    <Hero eyebrow="For parents" title="Be part of the decision, with the facts in front of you" body="Link to your child’s account with their consent, read the same report, and plan the costs of higher education." who={['sunita', 'rajesh']} cta={<><Button to="/register?role=PARENT" size="lg">Create a parent account</Button><Button to="/pricing" size="lg" variant="secondary">See the Family plan</Button></>} />
+    <Cards items={[
+      ['A report you can understand', 'Strengths, recommended stream and career matches explained in plain language — no test jargon.'],
+      ['Four-year cost planner', 'Tuition, hostel and books for government and private colleges, in ₹, with a monthly saving target.'],
+      ['Scholarships that fit', 'Central and state schemes with eligibility and family income limits in one place.'],
+      ['Expert help when you need it', 'Book a verified counsellor for a one-on-one family session by video.'],
+    ]} />
+    <section className="page pb-16">
+      <div className="flex flex-col gap-4 rounded-4xl bg-night p-8 text-white sm:p-10">
+        <h2 className="font-display text-2xl font-bold text-white">Five questions to ask your child tonight</h2>
+        <ol className="flex list-decimal flex-col gap-2 pl-5 text-night-text">
+          <li>Which subject do you lose track of time in?</li>
+          <li>What kind of problems do you enjoy solving?</li>
+          <li>Would you rather work with people, ideas or things?</li>
+          <li>How do you feel about two years of entrance exam preparation?</li>
+          <li>What would a good working day look like to you?</li>
+        </ol>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <h3 className="text-base font-bold text-white">Objective Psychometric Dossier</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Understand your child's natural cognitive strengths without emotional guesswork. See how their logical, verbal, and practical problem-solving traits match different academic streams.
-          </p>
-        </div>
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <h3 className="text-base font-bold text-white">4-Year Higher Education Cost Estimator</h3>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Model realistic tuition, hostel, exam coaching, and incidental costs for Engineering, Medicine, Law, Design, and Commerce to plan family savings responsibly.
-          </p>
-        </div>
-      </div>
-
-      <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-700 space-y-3">
-        <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">Five Questions to Ask Your Child Tonight:</h3>
-        <ul className="space-y-2 text-xs text-slate-200">
-          <li>1. "Which subject problems give you genuine satisfaction when you finally crack them?"</li>
-          <li>2. "Would you rather work in a hospital, a tech lab, a courtroom, or a design studio?"</li>
-          <li>3. "What kind of everyday lifestyle and work hours feel sustainable to you?"</li>
-          <li>4. "Which entrance examinations are you genuinely excited to study for?"</li>
-          <li>5. "How can we as parents best support your daily study stamina?"</li>
-        </ul>
-      </div>
-
-      <div className="text-center pt-4">
-        <Link to="/parent-portal" className="px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue">
-          Enter Parent Portal
-        </Link>
-      </div>
-    </div>
-  </div>
+    </section>
+  </>
 );
 
 export const ForSchoolsPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-10">
-      <div className="space-y-3">
-        <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-semibold border border-indigo-500/20">
-          Institutional SaaS
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">FuturePath for Schools & Academies</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Equip your school counselors, principals, and teachers with structured career intelligence, batch analytics, and parent-teacher conference reports.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <h3 className="text-base font-bold text-white">Bulk CSV Enrollment</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">Enroll entire batches of Class 10 & 12 students in one click with isolated tenant security.</p>
-        </div>
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <h3 className="text-base font-bold text-white">Class Stream Analytics</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">View aggregated distribution of student stream preferences to plan Class 11 section allocations.</p>
-        </div>
-        <div className="p-6 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <h3 className="text-base font-bold text-white">NEP 2020 Compliance</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">Align your school's guidance cell with national multi-disciplinary education framework standards.</p>
-        </div>
-      </div>
-
-      <div className="text-center pt-4">
-        <Link to="/school-portal" className="px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue">
-          Open School Portal Demo
-        </Link>
-      </div>
-    </div>
-  </div>
+  <>
+    <Hero eyebrow="For schools" title="Career guidance for every student, not just a few" body="Give Class 9–12 students the discovery test, reports and plans, with class-level insight for your counselling team." who={['harjeet', 'fatima']} cta={<><Button to="/pricing" size="lg">See the School Pilot</Button><Button to="/contact" size="lg" variant="secondary">Book a demo</Button></>} />
+    <Cards items={[
+      ['Import your class lists', 'Upload a CSV of students and send invitations in one go.'],
+      ['See who still needs the test', 'Track completion by class and send reminders to your WhatsApp groups.'],
+      ['Stream insight for planning', 'See stream interest across a batch to plan counselling sessions and parent-teacher meetings.'],
+      ['Aligned with NEP 2020', 'Multi-disciplinary pathways and vocational options are part of every report.'],
+    ]} />
+  </>
 );
 
 export const ForCounselorsPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
-      <div className="space-y-3">
-        <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
-          Professional Network
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">For Certified Career Counselors</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Join India's vetted network of career psychologists. Host structured 1-on-1 sessions, review 16-D assessment dossiers, and earn transparent hourly counseling fees.
-        </p>
-      </div>
-
-      <div className="p-6 rounded-2xl glass-panel bg-slate-900 border border-slate-800 space-y-4">
-        <h3 className="text-base font-bold text-white">Counselor Credentialing Standards</h3>
-        <p className="text-xs text-slate-300 leading-relaxed">
-          To maintain strict credibility for Indian families, counselor profiles undergo manual verification. We require recognized degrees in Psychology, Education, or certified career advisory diplomas (UCLA, RCI, or equivalent).
-        </p>
-      </div>
-
-      <div className="text-center pt-4">
-        <Link to="/counselor-portal" className="px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md glow-blue">
-          Browse Counselor Network
-        </Link>
-      </div>
-    </div>
-  </div>
+  <>
+    <Hero eyebrow="For counsellors" title="Spend your sessions on decisions, not data gathering" body="Students arrive with a report, a plan and their questions. You bring the judgement." who={['ananya']} cta={<Button to="/contact" size="lg">Apply to join</Button>} />
+    <Cards items={[
+      ['Verified profiles', 'We check qualifications and certifications before you appear to families.'],
+      ['Context before every call', 'See the student’s notes and booking details ahead of the session.'],
+      ['Simple scheduling', 'Share weekly slots; students book and get a video link automatically.'],
+      ['Fair, visible pricing', 'Set your hourly rate in ₹. Families see it before they book.'],
+    ]} />
+  </>
 );
 
 export const AboutPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
-      <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">About FuturePath AI</h1>
-      <p className="text-sm text-slate-300 leading-relaxed">
-        FuturePath AI was built on a single conviction: Indian students deserve transparent, evidence-informed guidance rather than social pressure, marketing hype, or opaque algorithms.
-      </p>
-
-      <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
-        <h3 className="text-base font-bold text-white">Our Three Core Design Principles:</h3>
-        <p><strong>1. Explainability Over Black-Box Predictions:</strong> We never declare a compatibility score without showing the supporting assessment dimensions, subject overlap, and areas where additional skills are needed.</p>
-        <p><strong>2. No Commercial Placement Illusions:</strong> We cite salary data and entrance exam cutoffs exclusively from verified government publications, official testing agencies, and audited industry associations.</p>
-        <p><strong>3. Uncompromising Student Privacy:</strong> We build for compliance with the Digital Personal Data Protection Act 2023. We never sell student data or profiles for unauthorized advertising.</p>
-      </div>
-    </div>
-  </div>
+  <>
+    <Hero eyebrow="About us" title="Honest guidance, not a sales funnel" body="FuturePath AI was built on one belief: Indian students deserve clear, evidence-informed guidance instead of pressure, hype or black-box algorithms." pose="love" />
+    <Cards items={[
+      ['We explain every match', 'You always see which strengths led to a recommendation and what you’d need to work on.'],
+      ['We cite our sources', 'Salary and exam data come from official bodies and industry studies, with the date we last checked.'],
+      ['We protect student data', 'Built for the DPDP Act 2023. We never sell student data or profiles.'],
+      ['We guide, we don’t decide', 'Recommendations are possibilities for families to discuss — never guarantees of admission or jobs.'],
+    ]} />
+  </>
 );
 
 export const ContactPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
-      <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">Contact & Support</h1>
-      <p className="text-sm text-slate-400">Our academic advisory team is available to support students, parents, and schools.</p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-        <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <Mail className="w-5 h-5 text-cyan-400" />
-          <h4 className="font-bold text-white">Email Inquiries</h4>
-          <p className="text-slate-400">support@futurepath.ai<br />admissions@futurepath.ai</p>
-        </div>
-        <div className="p-5 rounded-2xl glass-card bg-slate-900 border border-slate-800 space-y-2">
-          <Phone className="w-5 h-5 text-emerald-400" />
-          <h4 className="font-bold text-white">Institutional Desk</h4>
-          <p className="text-slate-400">+91 20 2600 0000<br />Mon–Sat, 9:00 AM – 6:00 PM IST</p>
-        </div>
+  <>
+    <Hero eyebrow="Contact" title="We’re here to help" body="Students, parents and schools can reach our team by email or phone." pose="wave" />
+    <section className="page grid gap-5 py-16 sm:grid-cols-2">
+      <div className="card flex flex-col gap-2 p-7">
+        <Mail className="h-6 w-6 text-royal-500" aria-hidden="true" />
+        <h2 className="text-xl font-bold">Email</h2>
+        <a href="mailto:support@futurepath.ai" className="link">support@futurepath.ai</a>
+        <a href="mailto:admissions@futurepath.ai" className="link">admissions@futurepath.ai</a>
       </div>
-    </div>
-  </div>
+      <div className="card flex flex-col gap-2 p-7">
+        <Phone className="h-6 w-6 text-royal-500" aria-hidden="true" />
+        <h2 className="text-xl font-bold">Schools desk</h2>
+        <a href="tel:+912026000000" className="link">+91 20 2600 0000</a>
+        <span className="text-ink-3">Mon–Sat, 9 am – 6 pm IST</span>
+      </div>
+    </section>
+  </>
 );
 
 export const PrivacyPolicyPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8 text-xs text-slate-300 leading-relaxed">
-      <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Privacy Policy & DPDP Compliance</h1>
-      <p className="text-slate-400">Last updated: January 15, 2026 • In compliance with Digital Personal Data Protection (DPDP) Act 2023</p>
-
-      <h3 className="text-base font-bold text-white">1. Data Minimization & Minor Safeguards</h3>
-      <p>Because FuturePath AI serves secondary school students who may be minors under Indian law, we implement strict privacy by design. We collect only data relevant to academic counseling: academic class, subjects, and cognitive assessment responses. We do not collect government identity numbers or financial card details.</p>
-
-      <h3 className="text-base font-bold text-white">2. Zero Sale of Student Information</h3>
-      <p>We do NOT sell, license, or monetize student contact information to private coaching institutes, educational loan brokers, or targeted advertising agencies.</p>
-
-      <h3 className="text-base font-bold text-white">3. Consent & Parent Access</h3>
-      <p>Parent access to student reports requires explicit consent-based linkage. Students and parents retain the right to request deletion of assessment attempts and profile data at any time via support@futurepath.ai.</p>
-    </div>
-  </div>
+  <Legal title="Privacy policy" updated="Last updated 15 January 2026 · Digital Personal Data Protection Act 2023" sections={[
+    ['1. We collect only what guidance needs', 'Because many of our users are minors, we collect only data relevant to guidance: class, subjects and test answers. We do not collect government ID numbers or card details.'],
+    ['2. We never sell student information', 'We do not sell, license or share student contacts with coaching institutes, loan brokers or advertisers.'],
+    ['3. Consent and parent access', 'A parent can see a student’s report only after linking with the student’s consent. Students and parents can ask us to delete test attempts and profile data at any time.'],
+  ]} />
 );
 
 export const TermsPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8 text-xs text-slate-300 leading-relaxed">
-      <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Terms of Service</h1>
-      <p className="text-slate-400">Effective Date: January 15, 2026</p>
-
-      <h3 className="text-base font-bold text-white">1. Informational & Guidance Purpose</h3>
-      <p>FuturePath AI provides career exploration, educational roadmaps, and stream intelligence. Recommendations do not constitute legal admission guarantees, clinical psychiatric diagnostics, or promised corporate salaries. Official criteria are set by testing authorities (NTA, CBSE, State Universities).</p>
-
-      <h3 className="text-base font-bold text-white">2. Fair Use & Account Security</h3>
-      <p>Users must provide accurate information. Accounts may not be shared across non-family members or reverse-engineered.</p>
-    </div>
-  </div>
+  <Legal title="Terms of service" updated="Effective 15 January 2026" sections={[
+    ['1. Guidance, not guarantees', 'FuturePath offers career exploration and planning. Recommendations are not admission guarantees, clinical assessments or promised salaries. Official criteria are set by bodies such as NTA, CBSE and universities.'],
+    ['2. Fair use and account security', 'Please give accurate information and keep your account to yourself and your family.'],
+  ]} />
 );
 
 export const RefundPolicyPage: React.FC = () => (
-  <div className="min-h-screen bg-slate-950 text-slate-100 py-16">
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8 text-xs text-slate-300 leading-relaxed">
-      <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Refund & Cancellation Policy</h1>
-      <p className="text-slate-400">Effective Date: January 15, 2026</p>
-
-      <h3 className="text-base font-bold text-white">1. 7-Day Satisfaction Guarantee</h3>
-      <p>We believe in the quality of our psychometric intelligence. If you purchase the Career Discovery Dossier (₹299) or Premium Student Plan (₹999) and find that it does not provide constructive educational clarity, you may request a 100% refund within 7 days of purchase.</p>
-
-      <h3 className="text-base font-bold text-white">2. Refund Processing</h3>
-      <p>Refunds are initiated directly via our Billing Center or by emailing support@futurepath.ai with your receipt number. Funds are credited back to the original source method (UPI, Bank Account, or Card) within 5–7 business days via Razorpay.</p>
-    </div>
-  </div>
+  <Legal title="Refunds and cancellations" updated="Effective 15 January 2026" sections={[
+    ['1. 7-day refund', 'If the Career Report (₹299) or Premium (₹999) doesn’t give you useful clarity, you can ask for a full refund within 7 days of purchase.'],
+    ['2. How refunds are paid', 'Email support@futurepath.ai with your receipt number. Refunds go back to the original UPI, bank account or card within 5–7 business days through Razorpay.'],
+    ['3. Cancelling a yearly plan', 'You can cancel from Plan and billing at any time. You move to the free plan and keep your report.'],
+  ]} />
 );

@@ -1,44 +1,36 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, CreditCard, Landmark, Lock, Smartphone, X } from 'lucide-react';
 import { ApiService } from '../services/api';
-import {
-  X,
-  ShieldCheck,
-  CheckCircle2,
-  Lock,
-  CreditCard,
-  QrCode,
-  Building2,
-  AlertCircle,
-  Loader2,
-  Sparkles
-} from 'lucide-react';
+import { useAuth } from '../context/auth';
+import { Alert, Button, Modal } from './ui';
+import { Dhruv } from './brand';
+import { cn, formatINR } from '../lib/utils';
+import { PLAN_INFO } from '../lib/plans';
 
-interface CheckoutModalProps {
-  planCode: string;
-  onClose: () => void;
-  onSuccess?: () => void;
-}
+const METHODS = [
+  { id: 'UPI' as const, label: 'UPI', hint: 'GPay, PhonePe, Paytm', Icon: Smartphone },
+  { id: 'CARD' as const, label: 'Card', hint: 'Debit or credit', Icon: CreditCard },
+  { id: 'NETBANKING' as const, label: 'Net banking', hint: 'All major banks', Icon: Landmark },
+];
 
-export const CheckoutModal: React.FC<CheckoutModalProps> = ({ planCode, onClose, onSuccess }) => {
+export const CheckoutModal: React.FC<{ planCode: string; onClose: () => void; onSuccess?: () => void }> = ({ planCode, onClose, onSuccess }) => {
   const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'DETAILS' | 'PAYMENT' | 'SUCCESS'>('DETAILS');
-  const [selectedMethod, setSelectedMethod] = useState<'UPI' | 'CARD' | 'NETBANKING'>('UPI');
+  const [method, setMethod] = useState<'UPI' | 'CARD' | 'NETBANKING'>('UPI');
   const [order, setOrder] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Plan pricing lookup
-  const planInfo: Record<string, { name: string; price: number; period: string }> = {
-    DISCOVERY: { name: 'Career Discovery Dossier', price: 299, period: 'one-time' },
-    PREMIUM_STUDENT: { name: 'Premium Student Annual', price: 999, period: 'per year' },
-    PREMIUM_PLUS: { name: 'Premium Plus & Parent Portal', price: 2499, period: 'per year' },
-    SCHOOL_PILOT: { name: 'School Institutional Pilot', price: 19999, period: 'per year' }
-  };
+  const plan = PLAN_INFO[planCode] || PLAN_INFO.PREMIUM_STUDENT;
 
-  const plan = planInfo[planCode] || { name: 'Premium Plan', price: 999, period: 'per year' };
-
-  const handleInitiateOrder = async () => {
+  const startOrder = async () => {
+    if (!user) {
+      onClose();
+      navigate(`/login?next=${encodeURIComponent('/pricing')}`);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -48,264 +40,112 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ planCode, onClose,
         setStep('PAYMENT');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to initialize payment gateway');
+      setError(err.message || 'We couldn’t start the payment. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSimulatePayment = async () => {
+  // Sandbox: the server verifies a mock signature in local development.
+  const pay = async () => {
     if (!order) return;
     setLoading(true);
     setError(null);
     try {
-      const mockPaymentId = `pay_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-      const mockSignature = `sig_mock_${Date.now()}`;
-
       const res = await ApiService.verifyPayment({
         orderId: order.orderId,
-        paymentId: mockPaymentId,
-        signature: mockSignature
+        paymentId: `pay_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+        signature: `sig_mock_${Date.now()}`,
       });
-
       if (res.success) {
         await refreshUser();
         setStep('SUCCESS');
-        if (onSuccess) onSuccess();
+        onSuccess?.();
       }
     } catch (err: any) {
-      setError(err.message || 'Payment verification failed');
+      setError(err.message || 'Payment could not be verified. You have not been charged.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg rounded-2xl glass-panel bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-600/20 text-cyan-400 flex items-center justify-center border border-brand-500/30">
-              <Lock className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Razorpay Secure Checkout</h3>
-              <p className="text-[11px] text-slate-400">256-bit Encrypted Transaction</p>
-            </div>
+    <Modal title={`Checkout: ${plan.name}`} onClose={onClose}>
+      <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink-2">
+          <Lock className="h-4 w-4 text-leaf-600" aria-hidden="true" /> Secure checkout · Razorpay
+        </span>
+        <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-mist">
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+
+      {step === 'SUCCESS' ? (
+        <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <Dhruv pose="thanks" size={140} decorative />
+          <h2 className="font-display text-2xl font-bold">Payment successful</h2>
+          <p className="max-w-sm text-[15px] text-ink-2">
+            {plan.name} is now active. Your GST invoice is in Billing.
+          </p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2.5">
+            <Button to="/dashboard" onClick={onClose}>Go to my home</Button>
+            <Button variant="secondary" to="/billing" onClick={onClose}>View invoice</Button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
-
-        {/* Modal Body */}
-        <div className="p-6">
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
+      ) : (
+        <div className="flex flex-col gap-5 px-6 py-6">
+          <div className="flex items-baseline justify-between gap-4 rounded-2xl bg-mist px-5 py-4">
+            <div>
+              <p className="text-lg font-bold">{plan.name}</p>
+              <p className="text-sm text-ink-3">{plan.period === 'one-time' ? 'One-time payment' : 'Billed yearly · reminder before renewal'}</p>
             </div>
-          )}
-
-          {step === 'DETAILS' && (
-            <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60">
-                <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
-                  Selected Package
-                </span>
-                <div className="flex items-center justify-between mt-1">
-                  <h4 className="text-lg font-bold text-white">{plan.name}</h4>
-                  <div className="text-right">
-                    <span className="text-2xl font-black text-cyan-400">₹{plan.price}</span>
-                    <span className="text-xs text-slate-400 block">/ {plan.period}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-300">
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Billed To</span>
-                  <span className="font-medium text-white">{user?.name} ({user?.email})</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Currency</span>
-                  <span className="font-medium text-white">INR (Indian Rupee)</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">GST / Tax</span>
-                  <span className="font-medium text-emerald-400">Included (Inclusive)</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-                <span>Instant activation: Full psychometric dossier, AI mentor & roadmaps unlocked immediately upon payment.</span>
-              </div>
-
-              <button
-                onClick={handleInitiateOrder}
-                disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-600 via-blue-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-sm shadow-lg glow-blue transition-all flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                <span>Proceed to Pay ₹{plan.price}</span>
-              </button>
-            </div>
-          )}
+            <p className="font-display text-3xl font-bold">{formatINR(plan.price)}</p>
+          </div>
 
           {step === 'PAYMENT' && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div>
-                  <span className="text-xs text-slate-400">Order ID</span>
-                  <p className="text-xs font-mono text-cyan-300">{order?.orderId}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-slate-400">Total Payable</span>
-                  <p className="text-base font-bold text-white">₹{order?.amount}</p>
-                </div>
-              </div>
-
-              {/* Payment Methods */}
-              <div className="grid grid-cols-3 gap-2">
+            <fieldset className="flex flex-col gap-2.5">
+              <legend className="mb-2 text-[15px] font-semibold">Pay with</legend>
+              {METHODS.map(({ id, label, hint, Icon }) => (
                 <button
+                  key={id}
                   type="button"
-                  onClick={() => setSelectedMethod('UPI')}
-                  className={`p-3 rounded-xl border text-center transition-all ${
-                    selectedMethod === 'UPI'
-                      ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
-                      : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:bg-slate-800'
-                  }`}
+                  role="radio"
+                  aria-checked={method === id}
+                  onClick={() => setMethod(id)}
+                  className={cn(
+                    'flex min-h-[56px] items-center gap-3 rounded-xl px-4 text-left',
+                    method === id ? 'border-2 border-royal-500 bg-royal-50' : 'border border-line-strong hover:border-royal-300'
+                  )}
                 >
-                  <QrCode className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
-                  <span className="text-xs font-semibold block">UPI / QR</span>
+                  <Icon className="h-5 w-5 text-royal-500" aria-hidden="true" />
+                  <span className="flex flex-col">
+                    <span className="font-semibold">{label}</span>
+                    <span className="text-sm text-ink-3">{hint}</span>
+                  </span>
+                  {method === id && <CheckCircle2 className="ml-auto h-5 w-5 text-royal-500" aria-hidden="true" />}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod('CARD')}
-                  className={`p-3 rounded-xl border text-center transition-all ${
-                    selectedMethod === 'CARD'
-                      ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
-                      : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:bg-slate-800'
-                  }`}
-                >
-                  <CreditCard className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
-                  <span className="text-xs font-semibold block">Cards</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMethod('NETBANKING')}
-                  className={`p-3 rounded-xl border text-center transition-all ${
-                    selectedMethod === 'NETBANKING'
-                      ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300'
-                      : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:bg-slate-800'
-                  }`}
-                >
-                  <Building2 className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
-                  <span className="text-xs font-semibold block">NetBanking</span>
-                </button>
-              </div>
-
-              {/* Simulated Method UI */}
-              {selectedMethod === 'UPI' && (
-                <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50 text-center space-y-2">
-                  <div className="w-24 h-24 mx-auto rounded-lg bg-white p-2 flex items-center justify-center">
-                    <QrCode className="w-20 h-20 text-slate-950" />
-                  </div>
-                  <p className="text-xs text-slate-300 font-medium">Scan with Google Pay, PhonePe, Paytm, or BHIM</p>
-                  <p className="text-[10px] text-slate-400">Sandbox Test Gateway: One click to simulate instant confirmation</p>
-                </div>
-              )}
-
-              {selectedMethod === 'CARD' && (
-                <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-2 text-xs">
-                  <input
-                    type="text"
-                    disabled
-                    value="•••• •••• •••• 4242 (Test Card)"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      disabled
-                      value="12 / 28"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs"
-                    />
-                    <input
-                      type="text"
-                      disabled
-                      value="CVV: 123"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {selectedMethod === 'NETBANKING' && (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-lg border border-slate-700 bg-slate-800/40 text-center text-slate-300 font-medium">
-                    HDFC Bank
-                  </div>
-                  <div className="p-2.5 rounded-lg border border-slate-700 bg-slate-800/40 text-center text-slate-300 font-medium">
-                    State Bank of India (SBI)
-                  </div>
-                  <div className="p-2.5 rounded-lg border border-slate-700 bg-slate-800/40 text-center text-slate-300 font-medium">
-                    ICICI Bank
-                  </div>
-                  <div className="p-2.5 rounded-lg border border-slate-700 bg-slate-800/40 text-center text-slate-300 font-medium">
-                    Axis Bank
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={handleSimulatePayment}
-                disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                <span>Authorize & Complete Payment (₹{order?.amount})</span>
-              </button>
-            </div>
+              ))}
+            </fieldset>
           )}
 
-          {step === 'SUCCESS' && (
-            <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center animate-bounce">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
+          {error && <Alert>{error}</Alert>}
 
-              <div>
-                <h4 className="text-xl font-bold text-white">Payment Verified & Activated!</h4>
-                <p className="text-xs text-slate-300 mt-1">
-                  Your account has been upgraded to <span className="text-cyan-400 font-semibold">{plan.name}</span>.
-                </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  An official GST invoice receipt has been recorded in your Billing Center.
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  onClick={onClose}
-                  className="py-2.5 px-6 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-all"
-                >
-                  Return to Workspace
-                </button>
-              </div>
-            </div>
+          {step === 'DETAILS' ? (
+            <>
+              <ul className="flex flex-col gap-2 text-[15px] text-ink-2">
+                <li>Prices include GST. Invoice is emailed and saved in Billing.</li>
+                <li>{user ? `Paying as ${user.email}` : 'You’ll log in first so the plan is added to your account.'}</li>
+              </ul>
+              <Button size="lg" onClick={startOrder} loading={loading}>
+                {user ? `Continue to pay ${formatINR(plan.price)}` : 'Log in to continue'}
+              </Button>
+            </>
+          ) : (
+            <Button size="lg" onClick={pay} loading={loading}>Pay {formatINR(plan.price)}</Button>
           )}
+          <p className="text-center text-xs text-ink-3">Test mode in local development — no real money is charged.</p>
         </div>
-
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 };
